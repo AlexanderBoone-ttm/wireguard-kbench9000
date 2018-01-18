@@ -1,5 +1,5 @@
 ifneq ($(KERNELRELEASE),)
-kbench9000-y := main.o curve25519-u128.o
+kbench9000-y := main.o blake2s-compress.o
 obj-m := kbench9000.o
 ccflags-y += -O3
 ccflags-y += -D'pr_fmt(fmt)=KBUILD_MODNAME ": " fmt'
