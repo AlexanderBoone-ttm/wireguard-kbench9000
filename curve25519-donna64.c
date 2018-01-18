@@ -396,7 +396,7 @@ static void crecip(felem out, const felem z)
 	/* 2^255 - 21 */ fmul(out, t0, a);
 }
 
-bool curve25519(u8 mypublic[CURVE25519_POINT_SIZE], const u8 secret[CURVE25519_POINT_SIZE], const u8 basepoint[CURVE25519_POINT_SIZE])
+bool curve25519_donna64(u8 mypublic[CURVE25519_POINT_SIZE], const u8 secret[CURVE25519_POINT_SIZE], const u8 basepoint[CURVE25519_POINT_SIZE])
 {
 	limb bp[5], x[5], z[5], zmone[5];
 	u8 e[32];
@@ -409,12 +409,6 @@ bool curve25519(u8 mypublic[CURVE25519_POINT_SIZE], const u8 secret[CURVE25519_P
 	crecip(zmone, z);
 	fmul(z, x, zmone);
 	fcontract(mypublic, z);
-
-	memzero_explicit(e, sizeof(e));
-	memzero_explicit(bp, sizeof(bp));
-	memzero_explicit(x, sizeof(x));
-	memzero_explicit(z, sizeof(z));
-	memzero_explicit(zmone, sizeof(zmone));
 
 	return true;
 }
