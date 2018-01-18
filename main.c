@@ -16,6 +16,20 @@ enum { CURVE25519_POINT_SIZE = 32 };
 u8 dummy_out[CURVE25519_POINT_SIZE];
 #include "test_vectors.h"
 
+static inline cycles_t get_arm_cycles(void)
+{
+	cycles_t cycles;
+	asm volatile("isb;mrs %0, cntpct_el0" : "=r"(cycles));
+	return cycles;
+}
+
+static inline cycles_t get_arm_freq(void)
+{
+	cycles_t cycles;
+	asm volatile("isb;mrs %0, cntfrq_el0" : "=r"(cycles));
+	return cycles;
+}
+
 #define declare_it(name) \
 bool curve25519_ ## name(u8 mypublic[CURVE25519_POINT_SIZE], const u8 secret[CURVE25519_POINT_SIZE], const u8 basepoint[CURVE25519_POINT_SIZE]); \
 static __always_inline int name(void) \
@@ -26,10 +40,10 @@ static __always_inline int name(void) \
 #define do_it(name) do { \
 	for (i = 0; i < WARMUP; ++i) \
 		ret |= name(); \
-	start_ ## name = get_cycles(); \
+	start_ ## name = get_arm_cycles(); \
 	for (i = 0; i < TRIALS; ++i) \
 		ret |= name(); \
-	end_ ## name = get_cycles(); \
+	end_ ## name = get_arm_cycles(); \
 } while (0)
 
 #define test_it(name, before, after) do { \
@@ -44,7 +58,7 @@ static __always_inline int name(void) \
 } while (0)
 
 #define report_it(name) do { \
-	pr_err("%lu: %7s: %lu cycles per call\n", stamp, #name, (end_ ## name - start_ ## name) / TRIALS); \
+	pr_err("%lu: %7s: %lu cycles per call\n", stamp, #name, (end_ ## name - start_ ## name) * get_arm_freq() / TRIALS / 1000000); \
 } while (0)
 
 
