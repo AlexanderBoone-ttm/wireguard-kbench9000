@@ -4,6 +4,7 @@ set -e
 nob_cpus() {
 	echo "[+] Setting non-boot CPUs to status $1"
 	for i in /sys/devices/system/cpu/*/online; do
+		[[ $i == *cpu0* ]] && continue
 		echo "$1" > "$i"
 	done
 }

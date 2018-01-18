@@ -6,10 +6,6 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/delay.h>
-#include <asm/cpufeature.h>
-#include <asm/processor.h>
-#include <asm/fpu/api.h>
-#include <asm/simd.h>
 
 static unsigned long stamp = 0;
 module_param(stamp, ulong, 0);
@@ -48,14 +44,12 @@ static __always_inline int name(void) \
 } while (0)
 
 #define report_it(name) do { \
-	pr_err("%lu: %7s: %llu cycles per call\n", stamp, #name, (end_ ## name - start_ ## name) / TRIALS); \
+	pr_err("%lu: %7s: %lu cycles per call\n", stamp, #name, (end_ ## name - start_ ## name) / TRIALS); \
 } while (0)
 
 
 declare_it(donna64)
 declare_it(hacl64)
-declare_it(sandy2x)
-declare_it(amd64)
 declare_it(fiat32)
 declare_it(donna32)
 
@@ -68,8 +62,6 @@ static bool verify(void)
 	for (i = 0; i < ARRAY_SIZE(curve25519_test_vectors); ++i) {
 		test_it(donna64, {}, {});
 		test_it(hacl64, {}, {});
-		test_it(sandy2x, kernel_fpu_begin(), kernel_fpu_end());
-		test_it(amd64, {}, {});
 		test_it(fiat32, {}, {});
 		test_it(donna32, {}, {});
 	}
@@ -82,8 +74,6 @@ static int __init mod_init(void)
 	int ret = 0, i;
 	cycles_t start_donna64, end_donna64;
 	cycles_t start_hacl64, end_hacl64;
-	cycles_t start_sandy2x, end_sandy2x;
-	cycles_t start_amd64, end_amd64;
 	cycles_t start_fiat32, end_fiat32;
 	cycles_t start_donna32, end_donna32;
 	unsigned long flags;
@@ -98,10 +88,6 @@ static int __init mod_init(void)
 
 	do_it(donna64);
 	do_it(hacl64);
-	kernel_fpu_begin();
-	do_it(sandy2x);
-	kernel_fpu_end();
-	do_it(amd64);
 	do_it(fiat32);
 	do_it(donna32);
 
@@ -109,8 +95,6 @@ static int __init mod_init(void)
 	
 	report_it(donna64);
 	report_it(hacl64);
-	report_it(sandy2x);
-	report_it(amd64);
 	report_it(fiat32);
 	report_it(donna32);
 
