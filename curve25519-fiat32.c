@@ -203,24 +203,24 @@ static __always_inline void fe_tobytes(u8 s[32], const fe *f)
 /* h = f */
 static __always_inline void fe_copy(fe *h, const fe *f)
 {
-	memmove(h, f, sizeof(u32) * 10);
+	memmove(h, f, sizeof(fe));
 }
 
 static __always_inline void fe_copy_lt(fe_loose *h, const fe *f)
 {
-	memmove(h, f, sizeof(u32) * 10);
+	memmove(h, f, sizeof(fe));
 }
 
 /* h = 0 */
 static __always_inline void fe_0(fe *h)
 {
-	memset(h, 0, sizeof(u32) * 10);
+	memset(h, 0, sizeof(fe));
 }
 
 /* h = 1 */
 static __always_inline void fe_1(fe *h)
 {
-	memset(h, 0, sizeof(u32) * 10);
+	memset(h, 0, sizeof(fe));
 	h->v[0] = 1;
 }
 
