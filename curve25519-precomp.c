@@ -10,25 +10,49 @@
 
 enum { CURVE25519_POINT_SIZE = 32 };
 
+static __always_inline void normalize_secret(u8 secret[CURVE25519_POINT_SIZE])
+{
+	secret[0] &= 248;
+	secret[31] &= 127;
+	secret[31] |= 64;
+}
+
 #define NUM_WORDS_ELTFP25519_X64 4
 typedef __aligned(32) u64 EltFp25519_1w_x64[NUM_WORDS_ELTFP25519_X64];
 typedef __aligned(32) u64 EltFp25519_1w_Buffer_x64[2 * NUM_WORDS_ELTFP25519_X64];
 
-#define mul_EltFp25519_1w_x64(c, a, b)            \
-	mul_256x256_integer_x64(buffer_1w, a, b); \
-	red_EltFp25519_1w_x64(c, buffer_1w);
+#define mul_EltFp25519_1w_x64_adx(c, a, b)            \
+	mul_256x256_integer_x64_adx(buffer_1w, a, b); \
+	red_EltFp25519_1w_x64_adx(c, buffer_1w);
 
-#define sqr_EltFp25519_1w_x64(a)               \
+#define sqr_EltFp25519_1w_x64_adx(a)           \
 	sqr_256x256_integer_x64(buffer_1w, a); \
-	red_EltFp25519_1w_x64(a, buffer_1w);
+	red_EltFp25519_1w_x64_adx(a, buffer_1w);
 
-#define mul_EltFp25519_2w_x64(c, a, b)             \
-	mul2_256x256_integer_x64(buffer_2w, a, b); \
-	red_EltFp25519_2w_x64(c, buffer_2w);
+#define mul_EltFp25519_2w_x64_adx(c, a, b)             \
+	mul2_256x256_integer_x64_adx(buffer_2w, a, b); \
+	red_EltFp25519_2w_x64_adx(c, buffer_2w);
 
-#define sqr_EltFp25519_2w_x64(a)                \
+#define sqr_EltFp25519_2w_x64_adx(a)            \
 	sqr2_256x256_integer_x64(buffer_2w, a); \
-	red_EltFp25519_2w_x64(a, buffer_2w);
+	red_EltFp25519_2w_x64_adx(a, buffer_2w);
+
+
+#define mul_EltFp25519_1w_x64_bmi2(c, a, b)            \
+	mul_256x256_integer_x64_bmi2(buffer_1w, a, b); \
+	red_EltFp25519_1w_x64_bmi2(c, buffer_1w);
+
+#define sqr_EltFp25519_1w_x64_bmi2(a)          \
+	sqr_256x256_integer_x64(buffer_1w, a); \
+	red_EltFp25519_1w_x64_bmi2(a, buffer_1w);
+
+#define mul_EltFp25519_2w_x64_bmi2(c, a, b)             \
+	mul2_256x256_integer_x64_bmi2(buffer_2w, a, b); \
+	red_EltFp25519_2w_x64_bmi2(c, buffer_2w);
+
+#define sqr_EltFp25519_2w_x64_bmi2(a)           \
+	sqr2_256x256_integer_x64(buffer_2w, a); \
+	red_EltFp25519_2w_x64_bmi2(a, buffer_2w);
 
 #define copy_EltFp25519_1w_x64(C, A) \
 	(C)[0] = (A)[0];             \
@@ -297,9 +321,8 @@ __aligned(32) static const u64 Table_Ladder_8k[252 * NUM_WORDS_ELTFP25519_X64] =
 	/* 252 */ 0xccdfcf2fc18b6d68, 0xa8ebcba8b7806167, 0x980697f95e2937e3, 0x02fbba1cd0126e8c
 };
 
-static void mul2_256x256_integer_x64(u64 *const c, u64 *const a, u64 *const b)
+static void mul2_256x256_integer_x64_adx(u64 *const c, u64 *const a, u64 *const b)
 {
-#ifdef __ADX__
 	__asm__ __volatile__(
 		"movq      (%1), %%rdx  # A[0]            \n\t"
 		"mulx	  (%2),  %%r8,  %%r9  # A[0]*B[0] \n\t"
@@ -459,7 +482,11 @@ static void mul2_256x256_integer_x64(u64 *const c, u64 *const a, u64 *const b)
 		: "memory", "cc", "%rax", "%rdx",
 		  "%r8", "%r9", "%r10", "%r11",
 		  "%r12", "%r13", "%r14");
-#else
+}
+
+
+static void mul2_256x256_integer_x64_bmi2(u64 *const c, u64 *const a, u64 *const b)
+{
 	__asm__ __volatile__(
 		"movq   (%1), %%rdx  # A[0] \n\t"
 		"mulx   (%2),  %%r8,  %%r9 # A[0]*B[0] \n\t"
@@ -602,7 +629,6 @@ static void mul2_256x256_integer_x64(u64 *const c, u64 *const a, u64 *const b)
 		: "r"(c), "r"(a), "r"(b)
 		: "memory", "cc", "%rax", "%rbx", "%rcx", "%rdx", "%r8",
 		  "%r9", "%r10", "%r11", "%r12", "%r13", "%r14");
-#endif
 }
 
 static void sqr2_256x256_integer_x64(u64 *const c, u64 *const a)
@@ -749,9 +775,8 @@ static void sqr2_256x256_integer_x64(u64 *const c, u64 *const a)
 		  "%r12", "%r13", "%r14");
 }
 
-static void red_EltFp25519_2w_x64(u64 *const c, u64 *const a)
+static void red_EltFp25519_2w_x64_adx(u64 *const c, u64 *const a)
 {
-#ifdef __ADX__
 	__asm__ __volatile__(
 		"movl	$38, %%edx     # 2*c = 38 = 2^256  \n\t"
 		"mulx	32(%1),  %%r8, %%r10 # c*C[4]      \n\t"
@@ -802,7 +827,10 @@ static void red_EltFp25519_2w_x64(u64 *const c, u64 *const a)
 		:
 		: "r"(c), "r"(a)
 		: "cc", "%rax", "%rbx", "%rcx", "%rdx", "%r8", "%r9", "%r10", "%r11");
-#else
+}
+
+static void red_EltFp25519_2w_x64_bmi2(u64 *const c, u64 *const a)
+{
 	__asm__ __volatile__(
 		"movl $38, %%edx     # 2*c = 38 = 2^256      \n\t"
 		"mulx 32(%1), %%r8,  %%r9  # c*C[4]  \n\t"
@@ -854,12 +882,10 @@ static void red_EltFp25519_2w_x64(u64 *const c, u64 *const a)
 		:
 		: "r"(c), "r"(a)
 		: "cc", "%rax", "%rbx", "%rcx", "%rdx", "%r8", "%r9", "%r10", "%r11", "%r12", "%r13");
-#endif
 }
 
-static void mul_256x256_integer_x64(u64 *const c, u64 *const a, u64 *const b)
+static void mul_256x256_integer_x64_adx(u64 *const c, u64 *const a, u64 *const b)
 {
-#ifdef __ADX__
 	__asm__ __volatile__(
 		"movq      (%1), %%rdx  # A[0]               \n\t"
 		"mulx	  (%2),  %%r8,  %%r9  # A[0]*B[0]   \n\t"
@@ -942,7 +968,10 @@ static void mul_256x256_integer_x64(u64 *const c, u64 *const a, u64 *const b)
 		: "memory", "cc", "%rax", "%rdx",
 		  "%r8", "%r9", "%r10", "%r11",
 		  "%r12", "%r13", "%r14");
-#else
+}
+
+static void mul_256x256_integer_x64_bmi2(u64 *const c, u64 *const a, u64 *const b)
+{
 	__asm__ __volatile__(
 		"movq     (%1), %%rdx  # A[0]                \n\t"
 		"mulx	  (%2),  %%r8,  %%r9  # A[0]*B[0]   \n\t"
@@ -1016,7 +1045,6 @@ static void mul_256x256_integer_x64(u64 *const c, u64 *const a, u64 *const b)
 		: "r"(c), "r"(a), "r"(b)
 		: "memory", "cc", "%rax", "%rbx", "%rcx", "%rdx", "%r8",
 		  "%r9", "%r10", "%r11", "%r12", "%r13", "%r14");
-#endif
 }
 
 static void sqr_256x256_integer_x64(u64 *const c, u64 *const a)
@@ -1095,9 +1123,8 @@ static void sqr_256x256_integer_x64(u64 *const c, u64 *const a)
 		  "%r12", "%r13", "%r14");
 }
 
-static void red_EltFp25519_1w_x64(u64 *const c, u64 *const a)
+static void red_EltFp25519_1w_x64_adx(u64 *const c, u64 *const a)
 {
-#ifdef __ADX__
 	__asm__ __volatile__(
 		"movl	$38, %%edx     # 2*c = 38 = 2^256  \n\t"
 		"mulx	32(%1),  %%r8, %%r10 # c*C[4]      \n\t"
@@ -1125,7 +1152,10 @@ static void red_EltFp25519_1w_x64(u64 *const c, u64 *const a)
 		:
 		: "r"(c), "r"(a)
 		: "memory", "cc", "%rax", "%rbx", "%rcx", "%rdx", "%r8", "%r9", "%r10", "%r11");
-#else
+}
+
+static void red_EltFp25519_1w_x64_bmi2(u64 *const c, u64 *const a)
+{
 	__asm__ __volatile__(
 		"movl	$38, %%edx     # 2*c = 38 = 2^256      \n\t"
 		"mulx	32(%1), %%r8,  %%r9  # c*C[4]  \n\t"
@@ -1153,12 +1183,10 @@ static void red_EltFp25519_1w_x64(u64 *const c, u64 *const a)
 		:
 		: "r"(c), "r"(a)
 		: "memory", "cc", "%rax", "%rbx", "%rcx", "%rdx", "%r8", "%r9", "%r10", "%r11", "%r12", "%r13");
-#endif
 }
 
-static inline void add_EltFp25519_1w_x64(u64 *const c, u64 *const a, u64 *const b)
+static inline void add_EltFp25519_1w_x64_adx(u64 *const c, u64 *const a, u64 *const b)
 {
-#ifdef __ADX__
 	__asm__ __volatile__(
 		"movq      (%2),  %%rax   \n\t"
 		"movq     8(%2),  %%rcx   \n\t"
@@ -1180,7 +1208,10 @@ static inline void add_EltFp25519_1w_x64(u64 *const c, u64 *const a, u64 *const 
 		:
 		: "r"(c), "r"(a), "r"(b)
 		: "memory", "cc", "%rax", "%rcx", "%r8", "%r9");
-#else
+}
+
+static inline void add_EltFp25519_1w_x64_bmi2(u64 *const c, u64 *const a, u64 *const b)
+{
 	__asm__ __volatile__(
 		"movq      (%2),  %%rax   \n\t"
 		"movq     8(%2),  %%rcx   \n\t"
@@ -1201,7 +1232,6 @@ static inline void add_EltFp25519_1w_x64(u64 *const c, u64 *const a, u64 *const 
 		:
 		: "r"(c), "r"(a), "r"(b)
 		: "memory", "cc", "%rax", "%rcx", "%r8", "%r9");
-#endif
 }
 
 static inline void sub_EltFp25519_1w_x64(u64 *const __restrict c, u64 *const __restrict a, u64 *const __restrict b)
@@ -1253,12 +1283,12 @@ static inline void mul_a24_EltFp25519_1w_x64(u64 *const c, u64 *const a)
 		: "cc", "%rax", "%rcx", "%rdx", "%r8", "%r9", "%r10", "%r11");
 }
 
-static void inv_EltFp25519_1w_x64(u64 *const pC, u64 *const pA)
+static void inv_EltFp25519_1w_x64_adx(u64 *const pC, u64 *const pA)
 {
-#define sqrn_EltFp25519_1w_x64(a, times)  \
-	counter = times;                  \
-	while (counter-- > 0) {           \
-		sqr_EltFp25519_1w_x64(a); \
+#define sqrn_EltFp25519_1w_x64(a, times)      \
+	counter = times;                      \
+	while (counter-- > 0) {               \
+		sqr_EltFp25519_1w_x64_adx(a); \
 	}
 
 	EltFp25519_1w_Buffer_x64 buffer_1w;
@@ -1276,32 +1306,84 @@ static void inv_EltFp25519_1w_x64(u64 *const pC, u64 *const pA)
 	sqrn_EltFp25519_1w_x64(T[1], 1);
 	copy_EltFp25519_1w_x64(T[2], T[1]);
 	sqrn_EltFp25519_1w_x64(T[2], 2);
-	mul_EltFp25519_1w_x64(T[0], pA, T[2]);
-	mul_EltFp25519_1w_x64(T[1], T[1], T[0]);
+	mul_EltFp25519_1w_x64_adx(T[0], pA, T[2]);
+	mul_EltFp25519_1w_x64_adx(T[1], T[1], T[0]);
 	copy_EltFp25519_1w_x64(T[2], T[1]);
 	sqrn_EltFp25519_1w_x64(T[2], 1);
-	mul_EltFp25519_1w_x64(T[0], T[0], T[2]);
+	mul_EltFp25519_1w_x64_adx(T[0], T[0], T[2]);
 	copy_EltFp25519_1w_x64(T[2], T[0]);
 	sqrn_EltFp25519_1w_x64(T[2], 5);
-	mul_EltFp25519_1w_x64(T[0], T[0], T[2]);
+	mul_EltFp25519_1w_x64_adx(T[0], T[0], T[2]);
 	copy_EltFp25519_1w_x64(T[2], T[0]);
 	sqrn_EltFp25519_1w_x64(T[2], 10);
-	mul_EltFp25519_1w_x64(T[2], T[2], T[0]);
+	mul_EltFp25519_1w_x64_adx(T[2], T[2], T[0]);
 	copy_EltFp25519_1w_x64(T[3], T[2]);
 	sqrn_EltFp25519_1w_x64(T[3], 20);
-	mul_EltFp25519_1w_x64(T[3], T[3], T[2]);
+	mul_EltFp25519_1w_x64_adx(T[3], T[3], T[2]);
 	sqrn_EltFp25519_1w_x64(T[3], 10);
-	mul_EltFp25519_1w_x64(T[3], T[3], T[0]);
+	mul_EltFp25519_1w_x64_adx(T[3], T[3], T[0]);
 	copy_EltFp25519_1w_x64(T[0], T[3]);
 	sqrn_EltFp25519_1w_x64(T[0], 50);
-	mul_EltFp25519_1w_x64(T[0], T[0], T[3]);
+	mul_EltFp25519_1w_x64_adx(T[0], T[0], T[3]);
 	copy_EltFp25519_1w_x64(T[2], T[0]);
 	sqrn_EltFp25519_1w_x64(T[2], 100);
-	mul_EltFp25519_1w_x64(T[2], T[2], T[0]);
+	mul_EltFp25519_1w_x64_adx(T[2], T[2], T[0]);
 	sqrn_EltFp25519_1w_x64(T[2], 50);
-	mul_EltFp25519_1w_x64(T[2], T[2], T[3]);
+	mul_EltFp25519_1w_x64_adx(T[2], T[2], T[3]);
 	sqrn_EltFp25519_1w_x64(T[2], 5);
-	mul_EltFp25519_1w_x64(T[1], T[1], T[2]);
+	mul_EltFp25519_1w_x64_adx(T[1], T[1], T[2]);
+#undef sqrn_EltFp25519_1w_x64
+}
+
+static void inv_EltFp25519_1w_x64_bmi2(u64 *const pC, u64 *const pA)
+{
+#define sqrn_EltFp25519_1w_x64(a, times)       \
+	counter = times;                       \
+	while (counter-- > 0) {                \
+		sqr_EltFp25519_1w_x64_bmi2(a); \
+	}
+
+	EltFp25519_1w_Buffer_x64 buffer_1w;
+	EltFp25519_1w_x64 x0, x1, x2;
+	u64 *T[5];
+	u64 counter;
+
+	T[0] = x0;
+	T[1] = pC; /* x^(-1) */
+	T[2] = x1;
+	T[3] = x2;
+	T[4] = pA; /* x */
+
+	copy_EltFp25519_1w_x64(T[1], pA);
+	sqrn_EltFp25519_1w_x64(T[1], 1);
+	copy_EltFp25519_1w_x64(T[2], T[1]);
+	sqrn_EltFp25519_1w_x64(T[2], 2);
+	mul_EltFp25519_1w_x64_bmi2(T[0], pA, T[2]);
+	mul_EltFp25519_1w_x64_bmi2(T[1], T[1], T[0]);
+	copy_EltFp25519_1w_x64(T[2], T[1]);
+	sqrn_EltFp25519_1w_x64(T[2], 1);
+	mul_EltFp25519_1w_x64_bmi2(T[0], T[0], T[2]);
+	copy_EltFp25519_1w_x64(T[2], T[0]);
+	sqrn_EltFp25519_1w_x64(T[2], 5);
+	mul_EltFp25519_1w_x64_bmi2(T[0], T[0], T[2]);
+	copy_EltFp25519_1w_x64(T[2], T[0]);
+	sqrn_EltFp25519_1w_x64(T[2], 10);
+	mul_EltFp25519_1w_x64_bmi2(T[2], T[2], T[0]);
+	copy_EltFp25519_1w_x64(T[3], T[2]);
+	sqrn_EltFp25519_1w_x64(T[3], 20);
+	mul_EltFp25519_1w_x64_bmi2(T[3], T[3], T[2]);
+	sqrn_EltFp25519_1w_x64(T[3], 10);
+	mul_EltFp25519_1w_x64_bmi2(T[3], T[3], T[0]);
+	copy_EltFp25519_1w_x64(T[0], T[3]);
+	sqrn_EltFp25519_1w_x64(T[0], 50);
+	mul_EltFp25519_1w_x64_bmi2(T[0], T[0], T[3]);
+	copy_EltFp25519_1w_x64(T[2], T[0]);
+	sqrn_EltFp25519_1w_x64(T[2], 100);
+	mul_EltFp25519_1w_x64_bmi2(T[2], T[2], T[0]);
+	sqrn_EltFp25519_1w_x64(T[2], 50);
+	mul_EltFp25519_1w_x64_bmi2(T[2], T[2], T[3]);
+	sqrn_EltFp25519_1w_x64(T[2], 5);
+	mul_EltFp25519_1w_x64_bmi2(T[1], T[1], T[2]);
 #undef sqrn_EltFp25519_1w_x64
 }
 
@@ -1325,7 +1407,7 @@ static inline void cswap_x64(u64 bit, u64 *const px, u64 *const py)
 
 static __always_inline void reduce_point_mod_2_255_19(u64 *p)
 {
-	__asm__ __volatile__ (
+	__asm__ __volatile__(
 		"cmpq $-19, %0\n"
 		"setaeb %%al\n"
 		"cmpq $-1, %1\n"
@@ -1347,18 +1429,10 @@ static __always_inline void reduce_point_mod_2_255_19(u64 *p)
 		"btrq $63, %3\n"
 		: "+r"(p[0]), "+r"(p[1]), "+r"(p[2]), "+r"(p[3])
 		:
-		: "memory", "cc", "%rax", "%rbx", "%rcx", "%rdx"
-	);
+		: "memory", "cc", "%rax", "%rbx", "%rcx", "%rdx");
 }
 
-static __always_inline void normalize_secret(u8 secret[CURVE25519_POINT_SIZE])
-{
-	secret[0] &= 248;
-	secret[31] &= 127;
-	secret[31] |= 64;
-}
-
-bool curve25519_precomp(u8 shared[CURVE25519_POINT_SIZE], const u8 private[CURVE25519_POINT_SIZE], const u8 session[CURVE25519_POINT_SIZE])
+bool curve25519_precomp_bmi2(u8 shared[CURVE25519_POINT_SIZE], const u8 private[CURVE25519_POINT_SIZE], const u8 session[CURVE25519_POINT_SIZE])
 {
 	__aligned(32) u64 buffer[4 * NUM_WORDS_ELTFP25519_X64];
 	__aligned(32) u64 coordinates[4 * NUM_WORDS_ELTFP25519_X64];
@@ -1424,40 +1498,40 @@ bool curve25519_precomp(u8 shared[CURVE25519_POINT_SIZE], const u8 private[CURVE
 			u64 swap = bit ^ prev;
 			prev = bit;
 
-			add_EltFp25519_1w_x64(A, X2, Z2);    /* A = (X2+Z2)                   */
-			sub_EltFp25519_1w_x64(B, X2, Z2);    /* B = (X2-Z2)                   */
-			add_EltFp25519_1w_x64(C, X3, Z3);    /* C = (X3+Z3)                   */
-			sub_EltFp25519_1w_x64(D, X3, Z3);    /* D = (X3-Z3)                   */
-			mul_EltFp25519_2w_x64(DACB, AB, DC); /* [DA|CB] = [A|B]*[D|C]         */
+			add_EltFp25519_1w_x64_bmi2(A, X2, Z2);    /* A = (X2+Z2)                   */
+			sub_EltFp25519_1w_x64(B, X2, Z2);	 /* B = (X2-Z2)                   */
+			add_EltFp25519_1w_x64_bmi2(C, X3, Z3);    /* C = (X3+Z3)                   */
+			sub_EltFp25519_1w_x64(D, X3, Z3);	 /* D = (X3-Z3)                   */
+			mul_EltFp25519_2w_x64_bmi2(DACB, AB, DC); /* [DA|CB] = [A|B]*[D|C]         */
 
 			cswap_x64(swap, A, C);
 			cswap_x64(swap, B, D);
 
-			sqr_EltFp25519_2w_x64(AB);	 /* [AA|BB] = [A^2|B^2]           */
-			add_EltFp25519_1w_x64(X3, DA, CB); /* X3 = (DA+CB)                  */
-			sub_EltFp25519_1w_x64(Z3, DA, CB); /* Z3 = (DA-CB)                  */
-			sqr_EltFp25519_2w_x64(X3Z3);       /* [X3|Z3] = [(DA+CB)|(DA+CB)]^2 */
+			sqr_EltFp25519_2w_x64_bmi2(AB);		/* [AA|BB] = [A^2|B^2]           */
+			add_EltFp25519_1w_x64_bmi2(X3, DA, CB); /* X3 = (DA+CB)                  */
+			sub_EltFp25519_1w_x64(Z3, DA, CB);      /* Z3 = (DA-CB)                  */
+			sqr_EltFp25519_2w_x64_bmi2(X3Z3);       /* [X3|Z3] = [(DA+CB)|(DA+CB)]^2 */
 
-			copy_EltFp25519_1w_x64(X2, B);	 /* X2 = B^2                      */
-			sub_EltFp25519_1w_x64(Z2, A, B);       /* Z2 = E = AA-BB                */
-			mul_a24_EltFp25519_1w_x64(B, Z2);      /* B = a24*E                     */
-			add_EltFp25519_1w_x64(B, B, X2);       /* B = a24*E+B                   */
-			mul_EltFp25519_2w_x64(X2Z2, X2Z2, AB); /* [X2|Z2] = [B|E]*[A|a24*E+B]   */
-			mul_EltFp25519_1w_x64(Z3, Z3, X1);     /* Z3 = Z3*X1                    */
+			copy_EltFp25519_1w_x64(X2, B);		    /* X2 = B^2                      */
+			sub_EltFp25519_1w_x64(Z2, A, B);	    /* Z2 = E = AA-BB                */
+			mul_a24_EltFp25519_1w_x64(B, Z2);	   /* B = a24*E                     */
+			add_EltFp25519_1w_x64_bmi2(B, B, X2);       /* B = a24*E+B                   */
+			mul_EltFp25519_2w_x64_bmi2(X2Z2, X2Z2, AB); /* [X2|Z2] = [B|E]*[A|a24*E+B]   */
+			mul_EltFp25519_1w_x64_bmi2(Z3, Z3, X1);     /* Z3 = Z3*X1                    */
 
 			--j;
 		}
 		j = 63;
 	}
 
-	inv_EltFp25519_1w_x64(A, Qz);
-	mul_EltFp25519_1w_x64((u64 *)shared, Qx, A);
+	inv_EltFp25519_1w_x64_bmi2(A, Qz);
+	mul_EltFp25519_1w_x64_bmi2((u64 *)shared, Qx, A);
 	fred_EltFp25519_1w_x64((u64 *)shared);
 
 	return true;
 }
 
-bool curve25519_precomp_generate_public(u8 session_key[CURVE25519_POINT_SIZE], const u8 private[CURVE25519_POINT_SIZE])
+bool curve25519_precomp_bmi2_base(u8 session_key[CURVE25519_POINT_SIZE], const u8 private[CURVE25519_POINT_SIZE])
 {
 	__aligned(32) u64 buffer[4 * NUM_WORDS_ELTFP25519_X64];
 	__aligned(32) u64 coordinates[4 * NUM_WORDS_ELTFP25519_X64];
@@ -1518,13 +1592,13 @@ bool curve25519_precomp_generate_public(u8 session_key[CURVE25519_POINT_SIZE], c
 			cswap_x64(swap, Zr1, Zr2);
 			swap = bit;
 			/* Addition */
-			sub_EltFp25519_1w_x64(B, Ur1, Zr1);     /* B = Ur1-Zr1                 */
-			add_EltFp25519_1w_x64(A, Ur1, Zr1);     /* A = Ur1+Zr1                 */
-			mul_EltFp25519_1w_x64(C, &P[4 * k], B); /* C = M0-B                    */
-			sub_EltFp25519_1w_x64(B, A, C);		/* B = (Ur1+Zr1) - M*(Ur1-Zr1) */
-			add_EltFp25519_1w_x64(A, A, C);		/* A = (Ur1+Zr1) + M*(Ur1-Zr1) */
-			sqr_EltFp25519_2w_x64(AB);		/* A = A^2      |  B = B^2     */
-			mul_EltFp25519_2w_x64(UZr1, ZUr2, AB);  /* Ur1 = Zr2*A  |  Zr1 = Ur2*B */
+			sub_EltFp25519_1w_x64(B, Ur1, Zr1);	  /* B = Ur1-Zr1                 */
+			add_EltFp25519_1w_x64_bmi2(A, Ur1, Zr1);     /* A = Ur1+Zr1                 */
+			mul_EltFp25519_1w_x64_bmi2(C, &P[4 * k], B); /* C = M0-B                    */
+			sub_EltFp25519_1w_x64(B, A, C);		     /* B = (Ur1+Zr1) - M*(Ur1-Zr1) */
+			add_EltFp25519_1w_x64_bmi2(A, A, C);	 /* A = (Ur1+Zr1) + M*(Ur1-Zr1) */
+			sqr_EltFp25519_2w_x64_bmi2(AB);		     /* A = A^2      |  B = B^2     */
+			mul_EltFp25519_2w_x64_bmi2(UZr1, ZUr2, AB);  /* Ur1 = Zr2*A  |  Zr1 = Ur2*B */
 			++j;
 		}
 		j = 0;
@@ -1532,19 +1606,211 @@ bool curve25519_precomp_generate_public(u8 session_key[CURVE25519_POINT_SIZE], c
 
 	/* Doubling */
 	for (i = 0; i < q; ++i) {
-		add_EltFp25519_1w_x64(A, Ur1, Zr1);  /*  A = Ur1+Zr1   */
-		sub_EltFp25519_1w_x64(B, Ur1, Zr1);  /*  B = Ur1-Zr1   */
-		sqr_EltFp25519_2w_x64(AB);	   /*  A = A**2     B = B**2   */
-		copy_EltFp25519_1w_x64(C, B);	/*  C = B         */
-		sub_EltFp25519_1w_x64(B, A, B);      /*  B = A-B       */
-		mul_a24_EltFp25519_1w_x64(D, B);     /*  D = my_a24*B  */
-		add_EltFp25519_1w_x64(D, D, C);      /*  D = D+C       */
-		mul_EltFp25519_2w_x64(UZr1, AB, CD); /*  Ur1 = A*B   Zr1 = Zr1*A */
+		add_EltFp25519_1w_x64_bmi2(A, Ur1, Zr1);  /*  A = Ur1+Zr1   */
+		sub_EltFp25519_1w_x64(B, Ur1, Zr1);       /*  B = Ur1-Zr1   */
+		sqr_EltFp25519_2w_x64_bmi2(AB);		  /*  A = A**2     B = B**2   */
+		copy_EltFp25519_1w_x64(C, B);		  /*  C = B         */
+		sub_EltFp25519_1w_x64(B, A, B);		  /*  B = A-B       */
+		mul_a24_EltFp25519_1w_x64(D, B);	  /*  D = my_a24*B  */
+		add_EltFp25519_1w_x64_bmi2(D, D, C);      /*  D = D+C       */
+		mul_EltFp25519_2w_x64_bmi2(UZr1, AB, CD); /*  Ur1 = A*B   Zr1 = Zr1*A */
 	}
 
 	/* Convert to affine coordinates */
-	inv_EltFp25519_1w_x64(A, Zr1);
-	mul_EltFp25519_1w_x64((u64 *)session_key, Ur1, A);
+	inv_EltFp25519_1w_x64_bmi2(A, Zr1);
+	mul_EltFp25519_1w_x64_bmi2((u64 *)session_key, Ur1, A);
+	fred_EltFp25519_1w_x64((u64 *)session_key);
+
+	return true;
+}
+
+bool curve25519_precomp_adx(u8 shared[CURVE25519_POINT_SIZE], const u8 private[CURVE25519_POINT_SIZE], const u8 session[CURVE25519_POINT_SIZE])
+{
+	__aligned(32) u64 buffer[4 * NUM_WORDS_ELTFP25519_X64];
+	__aligned(32) u64 coordinates[4 * NUM_WORDS_ELTFP25519_X64];
+	__aligned(32) u64 workspace[6 * NUM_WORDS_ELTFP25519_X64];
+	__aligned(32) u8 private_key[CURVE25519_POINT_SIZE];
+	__aligned(32) u8 session_key[CURVE25519_POINT_SIZE];
+
+	int i = 0, j = 0;
+	u64 prev = 0;
+	u64 *const X1 = (u64 *)session_key;
+	u64 *const key = (u64 *)private_key;
+	u64 *const Px = coordinates + 0;
+	u64 *const Pz = coordinates + 4;
+	u64 *const Qx = coordinates + 8;
+	u64 *const Qz = coordinates + 12;
+	u64 *const X2 = Qx;
+	u64 *const Z2 = Qz;
+	u64 *const X3 = Px;
+	u64 *const Z3 = Pz;
+	u64 *const X2Z2 = Qx;
+	u64 *const X3Z3 = Px;
+
+	u64 *const A = workspace + 0;
+	u64 *const B = workspace + 4;
+	u64 *const D = workspace + 8;
+	u64 *const C = workspace + 12;
+	u64 *const DA = workspace + 16;
+	u64 *const CB = workspace + 20;
+	u64 *const AB = A;
+	u64 *const DC = D;
+	u64 *const DACB = DA;
+	u64 *const buffer_1w = buffer;
+	u64 *const buffer_2w = buffer;
+
+	memcpy(session_key, session, sizeof(session_key));
+	memcpy(private_key, private, sizeof(private_key));
+	normalize_secret(private_key);
+
+	/* As in the draft:
+	 * When receiving such an array, implementations of curve25519
+	 * MUST mask the most-significant bit in the final byte. This
+	 * is done to preserve compatibility with point formats which
+	 * reserve the sign bit for use in other protocols and to
+	 * increase resistance to implementation fingerprinting
+	 */
+	session_key[CURVE25519_POINT_SIZE - 1] &= (1 << (255 % 8)) - 1;
+	reduce_point_mod_2_255_19((u64 *)session_key);
+	copy_EltFp25519_1w_x64(Px, (u64 *)session_key);
+
+	setzero_EltFp25519_1w_x64(Pz);
+	setzero_EltFp25519_1w_x64(Qx);
+	setzero_EltFp25519_1w_x64(Qz);
+
+	Pz[0] = 1;
+	Qx[0] = 1;
+
+	/* main-loop */
+	prev = 0;
+	j = 62;
+	for (i = 3; i >= 0; --i) {
+		while (j >= 0) {
+			u64 bit = (key[i] >> j) & 0x1;
+			u64 swap = bit ^ prev;
+			prev = bit;
+
+			add_EltFp25519_1w_x64_adx(A, X2, Z2);    /* A = (X2+Z2)                   */
+			sub_EltFp25519_1w_x64(B, X2, Z2);	/* B = (X2-Z2)                   */
+			add_EltFp25519_1w_x64_adx(C, X3, Z3);    /* C = (X3+Z3)                   */
+			sub_EltFp25519_1w_x64(D, X3, Z3);	/* D = (X3-Z3)                   */
+			mul_EltFp25519_2w_x64_adx(DACB, AB, DC); /* [DA|CB] = [A|B]*[D|C]         */
+
+			cswap_x64(swap, A, C);
+			cswap_x64(swap, B, D);
+
+			sqr_EltFp25519_2w_x64_adx(AB);	 /* [AA|BB] = [A^2|B^2]           */
+			add_EltFp25519_1w_x64_adx(X3, DA, CB); /* X3 = (DA+CB)                  */
+			sub_EltFp25519_1w_x64(Z3, DA, CB);     /* Z3 = (DA-CB)                  */
+			sqr_EltFp25519_2w_x64_adx(X3Z3);       /* [X3|Z3] = [(DA+CB)|(DA+CB)]^2 */
+
+			copy_EltFp25519_1w_x64(X2, B);		   /* X2 = B^2                      */
+			sub_EltFp25519_1w_x64(Z2, A, B);	   /* Z2 = E = AA-BB                */
+			mul_a24_EltFp25519_1w_x64(B, Z2);	  /* B = a24*E                     */
+			add_EltFp25519_1w_x64_adx(B, B, X2);       /* B = a24*E+B                   */
+			mul_EltFp25519_2w_x64_adx(X2Z2, X2Z2, AB); /* [X2|Z2] = [B|E]*[A|a24*E+B]   */
+			mul_EltFp25519_1w_x64_adx(Z3, Z3, X1);     /* Z3 = Z3*X1                    */
+
+			--j;
+		}
+		j = 63;
+	}
+
+	inv_EltFp25519_1w_x64_adx(A, Qz);
+	mul_EltFp25519_1w_x64_adx((u64 *)shared, Qx, A);
+	fred_EltFp25519_1w_x64((u64 *)shared);
+
+	return true;
+}
+
+bool curve25519_precomp_adx_base(u8 session_key[CURVE25519_POINT_SIZE], const u8 private[CURVE25519_POINT_SIZE])
+{
+	__aligned(32) u64 buffer[4 * NUM_WORDS_ELTFP25519_X64];
+	__aligned(32) u64 coordinates[4 * NUM_WORDS_ELTFP25519_X64];
+	__aligned(32) u64 workspace[4 * NUM_WORDS_ELTFP25519_X64];
+	__aligned(32) u8 private_key[CURVE25519_POINT_SIZE];
+
+	int i = 0, j = 0, k = 0;
+	u64 *const key = (u64 *)private_key;
+	u64 *const Ur1 = coordinates + 0;
+	u64 *const Zr1 = coordinates + 4;
+	u64 *const Ur2 = coordinates + 8;
+	u64 *const Zr2 = coordinates + 12;
+
+	u64 *const UZr1 = coordinates + 0;
+	u64 *const ZUr2 = coordinates + 8;
+
+	u64 *const A = workspace + 0;
+	u64 *const B = workspace + 4;
+	u64 *const C = workspace + 8;
+	u64 *const D = workspace + 12;
+
+	u64 *const AB = workspace + 0;
+	u64 *const CD = workspace + 8;
+
+	u64 *const buffer_1w = buffer;
+	u64 *const buffer_2w = buffer;
+	u64 *P = (u64 *)Table_Ladder_8k;
+
+	const int ite[4] = { 64, 64, 64, 63 };
+	const int q = 3;
+	u64 swap = 1;
+
+	memcpy(private_key, private, sizeof(private_key));
+	normalize_secret(private_key);
+
+	setzero_EltFp25519_1w_x64(Ur1);
+	setzero_EltFp25519_1w_x64(Zr1);
+	setzero_EltFp25519_1w_x64(Zr2);
+	Ur1[0] = 1;
+	Zr1[0] = 1;
+	Zr2[0] = 1;
+
+	/* G-S */
+	Ur2[3] = 0x1eaecdeee27cab34ULL;
+	Ur2[2] = 0xadc7a0b9235d48e2ULL;
+	Ur2[1] = 0xbbf095ae14b2edf8ULL;
+	Ur2[0] = 0x7e94e1fec82faabdULL;
+
+	/* main-loop */
+	j = q;
+	for (i = 0; i < NUM_WORDS_ELTFP25519_X64; ++i) {
+		while (j < ite[i]) {
+			u64 bit;
+			k = (64 * i + j - q);
+			bit = (key[i] >> j) & 0x1;
+			swap = swap ^ bit;
+			cswap_x64(swap, Ur1, Ur2);
+			cswap_x64(swap, Zr1, Zr2);
+			swap = bit;
+			/* Addition */
+			sub_EltFp25519_1w_x64(B, Ur1, Zr1);	 /* B = Ur1-Zr1                 */
+			add_EltFp25519_1w_x64_adx(A, Ur1, Zr1);     /* A = Ur1+Zr1                 */
+			mul_EltFp25519_1w_x64_adx(C, &P[4 * k], B); /* C = M0-B                    */
+			sub_EltFp25519_1w_x64(B, A, C);		    /* B = (Ur1+Zr1) - M*(Ur1-Zr1) */
+			add_EltFp25519_1w_x64_adx(A, A, C);	 /* A = (Ur1+Zr1) + M*(Ur1-Zr1) */
+			sqr_EltFp25519_2w_x64_adx(AB);		    /* A = A^2      |  B = B^2     */
+			mul_EltFp25519_2w_x64_adx(UZr1, ZUr2, AB);  /* Ur1 = Zr2*A  |  Zr1 = Ur2*B */
+			++j;
+		}
+		j = 0;
+	}
+
+	/* Doubling */
+	for (i = 0; i < q; ++i) {
+		add_EltFp25519_1w_x64_adx(A, Ur1, Zr1);  /*  A = Ur1+Zr1   */
+		sub_EltFp25519_1w_x64(B, Ur1, Zr1);      /*  B = Ur1-Zr1   */
+		sqr_EltFp25519_2w_x64_adx(AB);		 /*  A = A**2     B = B**2   */
+		copy_EltFp25519_1w_x64(C, B);		 /*  C = B         */
+		sub_EltFp25519_1w_x64(B, A, B);		 /*  B = A-B       */
+		mul_a24_EltFp25519_1w_x64(D, B);	 /*  D = my_a24*B  */
+		add_EltFp25519_1w_x64_adx(D, D, C);      /*  D = D+C       */
+		mul_EltFp25519_2w_x64_adx(UZr1, AB, CD); /*  Ur1 = A*B   Zr1 = Zr1*A */
+	}
+
+	/* Convert to affine coordinates */
+	inv_EltFp25519_1w_x64_adx(A, Zr1);
+	mul_EltFp25519_1w_x64_adx((u64 *)session_key, Ur1, A);
 	fred_EltFp25519_1w_x64((u64 *)session_key);
 
 	return true;
