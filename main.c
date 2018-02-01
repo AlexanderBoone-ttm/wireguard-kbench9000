@@ -57,6 +57,7 @@ declare_it(hacl64)
 declare_it(fiat64)
 declare_it(sandy2x)
 declare_it(amd64)
+declare_it(precomp)
 declare_it(fiat32)
 declare_it(donna32)
 
@@ -72,6 +73,7 @@ static bool verify(void)
 		test_it(fiat64, {}, {});
 		test_it(sandy2x, kernel_fpu_begin(), kernel_fpu_end());
 		test_it(amd64, {}, {});
+		test_it(precomp, {}, {});
 		test_it(fiat32, {}, {});
 		test_it(donna32, {}, {});
 	}
@@ -87,6 +89,7 @@ static int __init mod_init(void)
 	cycles_t start_fiat64, end_fiat64;
 	cycles_t start_sandy2x, end_sandy2x;
 	cycles_t start_amd64, end_amd64;
+	cycles_t start_precomp, end_precomp;
 	cycles_t start_fiat32, end_fiat32;
 	cycles_t start_donna32, end_donna32;
 	unsigned long flags;
@@ -106,6 +109,7 @@ static int __init mod_init(void)
 	do_it(sandy2x);
 	kernel_fpu_end();
 	do_it(amd64);
+	do_it(precomp);
 	do_it(fiat32);
 	do_it(donna32);
 
@@ -116,6 +120,7 @@ static int __init mod_init(void)
 	report_it(fiat64);
 	report_it(sandy2x);
 	report_it(amd64);
+	report_it(precomp);
 	report_it(fiat32);
 	report_it(donna32);
 
