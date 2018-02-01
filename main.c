@@ -16,15 +16,15 @@ module_param(stamp, ulong, 0);
 int dummy;
 
 
-enum { CURVE25519_POINT_SIZE = 32 };
-u8 dummy_out[CURVE25519_POINT_SIZE];
+enum { POLY1305_MAC_SIZE = 16, POLY1305_KEY_SIZE = 32 };
+u8 dummy_out[POLY1305_MAC_SIZE];
 #include "test_vectors.h"
 
 #define declare_it(name) \
-bool curve25519_ ## name(u8 mypublic[CURVE25519_POINT_SIZE], const u8 secret[CURVE25519_POINT_SIZE], const u8 basepoint[CURVE25519_POINT_SIZE]); \
+  bool poly1305_ ## name(u8 tag[POLY1305_MAC_SIZE], const u8 * msg, const u32 len, const u8 key[POLY1305_KEY_SIZE]); \
 static __always_inline int name(void) \
 { \
-	return curve25519_ ## name(dummy_out, curve25519_test_vectors[0].private, curve25519_test_vectors[0].public); \
+  return poly1305_ ## name(dummy_out, poly1305_test_vectors[0].input.data, poly1305_test_vectors[0].input.size, poly1305_test_vectors[0].key.data); \
 }
 
 #define do_it(name) do { \
@@ -37,11 +37,11 @@ static __always_inline int name(void) \
 } while (0)
 
 #define test_it(name, before, after) do { \
-	memset(out, __LINE__, CURVE25519_POINT_SIZE); \
+	memset(out, __LINE__, POLY1305_MAC_SIZE); \
 	before; \
-	ret = curve25519_ ## name(out, curve25519_test_vectors[i].private, curve25519_test_vectors[i].public); \
+	ret = poly1305_ ## name(out, poly1305_test_vectors[i].input.data,poly1305_test_vectors[i].input.size,poly1305_test_vectors[i].key.data); \
 	after; \
-	if (memcmp(out, curve25519_test_vectors[i].result, CURVE25519_POINT_SIZE)) { \
+	if (memcmp(out, poly1305_test_vectors[i].expected.data, POLY1305_MAC_SIZE)) { \
 		pr_err(#name " self-test %zu: FAIL\n", i + 1); \
 		return false; \
 	} \
@@ -52,30 +52,16 @@ static __always_inline int name(void) \
 } while (0)
 
 
-declare_it(donna64)
 declare_it(hacl64)
-declare_it(fiat64)
-declare_it(sandy2x)
-declare_it(amd64)
-declare_it(precomp)
-declare_it(fiat32)
-declare_it(donna32)
 
 static bool verify(void)
 {
 	int ret;
 	size_t i = 0;
-	u8 out[CURVE25519_POINT_SIZE];
+	u8 out[POLY1305_MAC_SIZE];
 
-	for (i = 0; i < ARRAY_SIZE(curve25519_test_vectors); ++i) {
-		test_it(donna64, {}, {});
+	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
 		test_it(hacl64, {}, {});
-		test_it(fiat64, {}, {});
-		test_it(sandy2x, kernel_fpu_begin(), kernel_fpu_end());
-		test_it(amd64, {}, {});
-		test_it(precomp, {}, {});
-		test_it(fiat32, {}, {});
-		test_it(donna32, {}, {});
 	}
 	return true;
 }
@@ -84,14 +70,7 @@ static int __init mod_init(void)
 {
 	enum { WARMUP = 5000, TRIALS = 10000, IDLE = 1 * 1000 };
 	int ret = 0, i;
-	cycles_t start_donna64, end_donna64;
 	cycles_t start_hacl64, end_hacl64;
-	cycles_t start_fiat64, end_fiat64;
-	cycles_t start_sandy2x, end_sandy2x;
-	cycles_t start_amd64, end_amd64;
-	cycles_t start_precomp, end_precomp;
-	cycles_t start_fiat32, end_fiat32;
-	cycles_t start_donna32, end_donna32;
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
@@ -102,27 +81,11 @@ static int __init mod_init(void)
 
 	spin_lock_irqsave(&lock, flags);
 
-	do_it(donna64);
 	do_it(hacl64);
-	do_it(fiat64);
-	kernel_fpu_begin();
-	do_it(sandy2x);
-	kernel_fpu_end();
-	do_it(amd64);
-	do_it(precomp);
-	do_it(fiat32);
-	do_it(donna32);
 
 	spin_unlock_irqrestore(&lock, flags);
 	
-	report_it(donna64);
 	report_it(hacl64);
-	report_it(fiat64);
-	report_it(sandy2x);
-	report_it(amd64);
-	report_it(precomp);
-	report_it(fiat32);
-	report_it(donna32);
 
 	/* Don't let compiler be too clever. */
 	dummy = ret;
