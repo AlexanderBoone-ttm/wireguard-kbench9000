@@ -53,6 +53,7 @@ static __always_inline int name(void) \
 
 
 declare_it(hacl64)
+declare_it(ref)
 
 static bool verify(void)
 {
@@ -63,6 +64,9 @@ static bool verify(void)
 	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
 		test_it(hacl64, {}, {});
 	}
+	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
+		test_it(ref, {}, {});
+	}
 	return true;
 }
 
@@ -71,6 +75,7 @@ static int __init mod_init(void)
 	enum { WARMUP = 5000, TRIALS = 10000, IDLE = 1 * 1000 };
 	int ret = 0, i;
 	cycles_t start_hacl64, end_hacl64;
+	cycles_t start_ref, end_ref;
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
@@ -82,10 +87,12 @@ static int __init mod_init(void)
 	spin_lock_irqsave(&lock, flags);
 
 	do_it(hacl64);
+	do_it(ref);
 
 	spin_unlock_irqrestore(&lock, flags);
 	
 	report_it(hacl64);
+	report_it(ref);
 
 	/* Don't let compiler be too clever. */
 	dummy = ret;
