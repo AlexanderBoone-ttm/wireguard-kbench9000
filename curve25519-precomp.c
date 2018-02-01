@@ -1323,29 +1323,32 @@ static inline void cswap_x64(u64 bit, u64 *const px, u64 *const py)
 	}
 }
 
-static __always_inline u64 ct_eq_u64(u64 x, u64 y)
-{
-	return 1 ^ (((x - y) | (y - x)) >> 63);
-}
-
-static __always_inline u64 ct_ge_u64(u64 x, u64 y)
-{
-	return 1 ^ ((x ^ ((x ^ y) | ((x - y) ^ y))) >> 63);
-}
-
 static __always_inline void reduce_point_mod_2_255_19(u64 *p)
 {
-	u64 prime[4] = { 0xffffffffffffffedULL, 0xffffffffffffffffULL, 0xffffffffffffffffULL, 0x7fffffffffffffffULL };
-	u64 mask0 = ct_ge_u64(p[0], 0xffffffffffffffedULL);
-	u64 mask1 = ct_eq_u64(p[1], 0xffffffffffffffffULL);
-	u64 mask2 = ct_eq_u64(p[2], 0xffffffffffffffffULL);
-	u64 mask3 = ct_eq_u64(p[3], 0x7fffffffffffffffULL);
-	u64 mask = -(((mask0 & mask1) & mask2) & mask3);
-	prime[0] &= mask;
-	prime[1] &= mask;
-	prime[2] &= mask;
-	prime[3] &= mask;
-	sub_EltFp25519_1w_x64(p, p, prime);
+	__asm__ __volatile__ (
+		"cmpq $-19, %0\n"
+		"setaeb %%al\n"
+		"cmpq $-1, %1\n"
+		"setzb %%bl\n"
+		"cmpq $-1, %2\n"
+		"setzb %%cl\n"
+		"leaq 1(%3), %%rdx\n"
+		"shrq $63, %%rdx\n"
+		"andb %%bl, %%al\n"
+		"andb %%dl, %%cl\n"
+		"testb %%cl, %%al\n"
+		"movl $0, %%eax\n"
+		"movl $19, %%ecx\n"
+		"cmovnzq %%rcx, %%rax\n"
+		"addq %%rax, %0\n"
+		"adcq $0, %1\n"
+		"adcq $0, %2\n"
+		"adcq $0, %3\n"
+		"btrq $63, %3\n"
+		: "+r"(p[0]), "+r"(p[1]), "+r"(p[2]), "+r"(p[3])
+		:
+		: "memory", "cc", "%rax", "%rbx", "%rcx", "%rdx"
+	);
 }
 
 static __always_inline void normalize_secret(u8 secret[CURVE25519_POINT_SIZE])
