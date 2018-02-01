@@ -1,20 +1,9 @@
-/*
- * Copyright (c) 2017 Armando Faz <armfazh@ic.unicamp.br>.
- * Institute of Computing.
- * University of Campinas, Brazil.
+/* SPDX-License-Identifier: GPL-3+, but GPL-2 requested from authors; awaiting feedback.
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (C) 2017 Armando Faz <armfazh@ic.unicamp.br>.
+ * Copyright (C) 2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ * Copyright (C) 2018 Samuel Neves <sneves@dei.uc.pt>. All Rights Reserved.
+ */
 
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -1333,6 +1322,32 @@ static inline void cswap_x64(u64 bit, u64 *const px, u64 *const py)
 		py[i] = py[i] ^ t;
 	}
 }
+
+static __always_inline u64 ct_eq_u64(u64 x, u64 y)
+{
+	return 1 ^ (((x - y) | (y - x)) >> 63);
+}
+
+static __always_inline u64 ct_ge_u64(u64 x, u64 y)
+{
+	return 1 ^ ((x ^ ((x ^ y) | ((x - y) ^ y))) >> 63);
+}
+
+static __always_inline void reduce_point_mod_2_255_19(u64 *p)
+{
+	u64 prime[4] = { 0xffffffffffffffedULL, 0xffffffffffffffffULL, 0xffffffffffffffffULL, 0x7fffffffffffffffULL };
+	u64 mask0 = ct_ge_u64(p[0], 0xffffffffffffffedULL);
+	u64 mask1 = ct_eq_u64(p[1], 0xffffffffffffffffULL);
+	u64 mask2 = ct_eq_u64(p[2], 0xffffffffffffffffULL);
+	u64 mask3 = ct_eq_u64(p[3], 0x7fffffffffffffffULL);
+	u64 mask = -(((mask0 & mask1) & mask2) & mask3);
+	prime[0] &= mask;
+	prime[1] &= mask;
+	prime[2] &= mask;
+	prime[3] &= mask;
+	sub_EltFp25519_1w_x64(p, p, prime);
+}
+
 static __always_inline void normalize_secret(u8 secret[CURVE25519_POINT_SIZE])
 {
 	secret[0] &= 248;
@@ -1387,8 +1402,9 @@ bool curve25519_precomp(u8 shared[CURVE25519_POINT_SIZE], const u8 private[CURVE
 	 * increase resistance to implementation fingerprinting
 	 */
 	session_key[CURVE25519_POINT_SIZE - 1] &= (1 << (255 % 8)) - 1;
-
+	reduce_point_mod_2_255_19((u64 *)session_key);
 	copy_EltFp25519_1w_x64(Px, (u64 *)session_key);
+
 	setzero_EltFp25519_1w_x64(Pz);
 	setzero_EltFp25519_1w_x64(Qx);
 	setzero_EltFp25519_1w_x64(Qz);
