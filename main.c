@@ -62,7 +62,7 @@ static bool verify(void)
 	u8 out[POLY1305_MAC_SIZE];
 
 	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
-		test_it(hacl64, {}, {});
+	  		test_it(hacl64, {}, {});
 	}
 	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
 		test_it(ref, {}, {});

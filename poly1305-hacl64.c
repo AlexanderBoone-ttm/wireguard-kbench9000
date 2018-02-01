@@ -26,8 +26,9 @@
 
 typedef struct 
 {
-  u64 *r;
-  u64 *h;
+  u64* r;
+  u64* h;
+  u64* r5;
 }
 Hacl_Impl_Poly1305_64_State_poly1305_state;
 
@@ -77,12 +78,6 @@ static __always_inline u128 load128_le(u8 *b) {
 static __always_inline void store128_le(u8 *b, u128 n) {
   *(__force __le64 *)b = cpu_to_le64((u64)n);
   *(__force __le64 *)(b+8) = cpu_to_le64((u64)(n >> 64));
-}
-
-__always_inline static void Hacl_Bignum_Modulo_reduce(u64 *b)
-{
-  u64 b0 = b[0U];
-  b[0U] = (b0 << (u32)4U) + (b0 << (u32)2U);
 }
 
 __always_inline static void Hacl_Bignum_Modulo_carry_top(u64 *b)
@@ -197,50 +192,58 @@ __always_inline static void Hacl_Bignum_Fproduct_carry_limb_(u64 *tmp)
   }
 }
 
-__always_inline static void Hacl_Bignum_Fmul_shift_reduce(u64 *output)
+
+__always_inline static void Hacl_Bignum_Modulo_reduce(u64 *key, u64 *key5, u32 i)
 {
-  u64 tmp = output[2U];
+  u64 b0 = key5[2-i];
+  key[0U] = b0;
+}
+
+
+__always_inline static void Hacl_Bignum_Fmul_shift_reduce(u64 *key,u64 *key5, u32 i)
+{
+  u64 tmp = key[2U];
   {
     u32 ctr = (u32)3U - 0 - (u32)1U;
-    u64 z = output[ctr - (u32)1U];
-    output[ctr] = z;
+    u64 z = key[ctr - (u32)1U];
+    key[ctr] = z;
   }
   {
     u32 ctr = (u32)3U - 1 - (u32)1U;
-    u64 z = output[ctr - (u32)1U];
-    output[ctr] = z;
+    u64 z = key[ctr - (u32)1U];
+    key[ctr] = z;
   }
-  output[0U] = tmp;
-  Hacl_Bignum_Modulo_reduce(output);
+  key[0U] = tmp;
+  Hacl_Bignum_Modulo_reduce(key,key5,i);
 }
 
-static void
-Hacl_Bignum_Fmul_mul_shift_reduce_(u128 *output, u64 *input, u64 *input2)
+__always_inline static void
+Hacl_Bignum_Fmul_mul_shift_reduce_(u128 *output, u64 *input, u64 *key, u64 *key5)
 {
+  u64 tmp[3U];
+  memcpy(tmp, key, (u32)3U * sizeof key[0U]);
   u32 i;
-  { i = 0;
-    u64 input2i = input2[i];
-    Hacl_Bignum_Fproduct_sum_scalar_multiplication_(output, input, input2i);
-    Hacl_Bignum_Fmul_shift_reduce(input);
+  {
+    i = 0;
+    u64 inputi = input[i];
+    Hacl_Bignum_Fproduct_sum_scalar_multiplication_(output, tmp, inputi);
+    Hacl_Bignum_Fmul_shift_reduce(tmp,key5,i);
   }
-  { i = 1;
-    u64 input2i = input2[i];
-    Hacl_Bignum_Fproduct_sum_scalar_multiplication_(output, input, input2i);
-    Hacl_Bignum_Fmul_shift_reduce(input);
+  {
+    i = 1;
+    u64 inputi = input[i];
+    Hacl_Bignum_Fproduct_sum_scalar_multiplication_(output, tmp, inputi);
+    Hacl_Bignum_Fmul_shift_reduce(tmp,key5,i);
   }
   i = 2;
-  u64 input2i = input2[i];
-  Hacl_Bignum_Fproduct_sum_scalar_multiplication_(output, input, input2i);
+  u64 inputi = input[i];
+  Hacl_Bignum_Fproduct_sum_scalar_multiplication_(output, tmp, inputi);
 }
 
-__always_inline static void Hacl_Bignum_Fmul_fmul(u64 *output, u64 *input, u64 *input2)
+__always_inline static void Hacl_Bignum_Fmul_fmul(u64 *output, u64 *input, u64 *key, u64* key5)
 {
-  u64 tmp[3U] = { 0U };
-  memcpy(tmp, input, (u32)3U * sizeof input[0U]);
-  KRML_CHECK_SIZE(u64_to_u128((u64)0U), (u32)3U);
   u128 t[3U] = {0};
-
-  Hacl_Bignum_Fmul_mul_shift_reduce_(t, tmp, input2);
+  Hacl_Bignum_Fmul_mul_shift_reduce_(t, input, key, key5);
   Hacl_Bignum_Fproduct_carry_wide_(t);
   Hacl_Bignum_Modulo_carry_top_wide(t);
   Hacl_Bignum_Fproduct_copy_from_wide_(output, t);
@@ -253,7 +256,7 @@ __always_inline static void Hacl_Bignum_Fmul_fmul(u64 *output, u64 *input, u64 *
 }
 
 __always_inline static void
-Hacl_Bignum_AddAndMultiply_add_and_multiply(u64 *acc, u64 *block, u64 *r)
+Hacl_Bignum_AddAndMultiply_add_and_multiply(u64 *acc, u64 *block, u64 *r, u64* r5)
 {
   u32 i;
   { i = 0;
@@ -271,8 +274,9 @@ Hacl_Bignum_AddAndMultiply_add_and_multiply(u64 *acc, u64 *block, u64 *r)
     u64 yi = block[i];
     acc[i] = xi + yi;
   }
-  Hacl_Bignum_Fmul_fmul(acc, acc, r);
+  Hacl_Bignum_Fmul_fmul(acc, acc, r, r5);
 }
+
 
 __always_inline static void
 Hacl_Impl_Poly1305_64_poly1305_update(
@@ -286,6 +290,7 @@ Hacl_Impl_Poly1305_64_poly1305_update(
   Hacl_Impl_Poly1305_64_State_poly1305_state scrut = st;
   u64 *r = scrut.r;
   u64 *r3 = r;
+  u64 *r5 = scrut.r5;
   u64 tmp[3U] = { 0U };
   u128 m0 = load128_le(m);
   u64 r0 = u128_to_u64(m0) & (u64)0xfffffffffffU;
@@ -300,7 +305,7 @@ Hacl_Impl_Poly1305_64_poly1305_update(
   u64 b2 = tmp[2U];
   u64 b2_ = (u64)0x10000000000U | b2;
   tmp[2U] = b2_;
-  Hacl_Bignum_AddAndMultiply_add_and_multiply(acc, tmp, r3);
+  Hacl_Bignum_AddAndMultiply_add_and_multiply(acc, tmp, r3, r5);
 }
 
 __always_inline static void
@@ -326,7 +331,7 @@ Hacl_Impl_Poly1305_64_poly1305_process_last_block_(
   u64 *h = scrut0.h;
   Hacl_Impl_Poly1305_64_State_poly1305_state scrut = st;
   u64 *r = scrut.r;
-  Hacl_Bignum_AddAndMultiply_add_and_multiply(h, tmp, r);
+  Hacl_Bignum_AddAndMultiply_add_and_multiply(h, tmp, r, scrut.r5);
 }
 
 __always_inline static void
@@ -336,8 +341,6 @@ Hacl_Impl_Poly1305_64_poly1305_process_last_block(
   u64 rem_
 )
 {
-  u8 zero1 = (u8)0U;
-  KRML_CHECK_SIZE(zero1, (u32)16U);
   u8 block[16U] = {0};
   u32 i0 = (u32)rem_;
   u32 i = (u32)rem_;
@@ -384,9 +387,13 @@ __always_inline static void Hacl_Impl_Poly1305_64_poly1305_last_pass(u64 *acc)
 }
 
 __always_inline static Hacl_Impl_Poly1305_64_State_poly1305_state
-Hacl_Impl_Poly1305_64_mk_state(u64 *r, u64 *h)
+Hacl_Impl_Poly1305_64_mk_state(u64 *r, u64 *h, u64* r5)
 {
-  return ((Hacl_Impl_Poly1305_64_State_poly1305_state){ .r = r, .h = h });
+  Hacl_Impl_Poly1305_64_State_poly1305_state st;
+  st.r = r;
+  st.h = h;
+  st.r5 = r5;
+  return st;
 }
 
 static void
@@ -396,15 +403,14 @@ Hacl_Standalone_Poly1305_64_poly1305_blocks(
   u64 len1
 )
 {
-  if (!(len1 == (u64)0U))
-  {
-    u8 *block = m;
-    u8 *tail1 = m + (u32)16U;
-    Hacl_Impl_Poly1305_64_poly1305_update(st, block);
-    u64 len2 = len1 - (u64)1U;
-    Hacl_Standalone_Poly1305_64_poly1305_blocks(st, tail1, len2);
+  u32 i;
+  u8* msg = m;
+  for (i = 0; i < len1; ++i) {
+    Hacl_Impl_Poly1305_64_poly1305_update(st, msg);
+    msg = msg + (u32)16U;
   }
 }
+  
 
 __always_inline static void
 Hacl_Standalone_Poly1305_64_poly1305_partial(
@@ -434,6 +440,10 @@ Hacl_Standalone_Poly1305_64_poly1305_partial(
   x0[0U] = r0;
   x0[1U] = r1;
   x0[2U] = r2;
+  u64 *r5 = scrut.r5;
+  r5[0U] = 20 * r0;
+  r5[1U] = 20 * r1;
+  r5[2U] = 20 * r2;
   Hacl_Impl_Poly1305_64_State_poly1305_state scrut0 = st;
   u64 *h = scrut0.h;
   u64 *x00 = h;
@@ -473,10 +483,12 @@ Hacl_Standalone_Poly1305_64_crypto_onetimeauth_(
   u8 *k1
 )
 {
-  u64 buf[6U] = { 0U };
+  u64 buf[9U] = { 0U };
   u64 *r = buf;
   u64 *h = buf + (u32)3U;
-  Hacl_Impl_Poly1305_64_State_poly1305_state st = Hacl_Impl_Poly1305_64_mk_state(r, h);
+  u64 *r5 = buf + (u32)6U;
+  
+  Hacl_Impl_Poly1305_64_State_poly1305_state st = Hacl_Impl_Poly1305_64_mk_state(r, h, r5);
   u8 *key_s = k1 + (u32)16U;
   Hacl_Standalone_Poly1305_64_poly1305_complete(st, input, len1, k1);
   Hacl_Impl_Poly1305_64_State_poly1305_state scrut = st;
@@ -508,16 +520,11 @@ Hacl_Standalone_Poly1305_64_crypto_onetimeauth(
   Hacl_Standalone_Poly1305_64_crypto_onetimeauth_(output, input, len1, k1);
 }
 
-Hacl_Impl_Poly1305_64_State_poly1305_state
-Hacl_Poly1305_64_mk_state(u64 *r, u64 *acc)
-{
-  return Hacl_Impl_Poly1305_64_mk_state(r, acc);
-}
-
 void Hacl_Poly1305_64_init(Hacl_Impl_Poly1305_64_State_poly1305_state st, u8 *k1)
 {
   Hacl_Impl_Poly1305_64_State_poly1305_state scrut = st;
   u64 *r = scrut.r;
+  u64 *r5= scrut.r5;
   u64 *x0 = r;
   u128 k10 = load128_le(k1);
   u128
@@ -536,6 +543,9 @@ void Hacl_Poly1305_64_init(Hacl_Impl_Poly1305_64_State_poly1305_state st, u8 *k1
   x0[0U] = r0;
   x0[1U] = r1;
   x0[2U] = r2;
+  r5[0U] = 20 * r0;
+  r5[1U] = 20 * r1;
+  r5[2U] = 20 * r2; 
   Hacl_Impl_Poly1305_64_State_poly1305_state scrut0 = st;
   u64 *h = scrut0.h;
   u64 *x00 = h;
@@ -556,13 +566,13 @@ Hacl_Poly1305_64_update(
   u32 num_blocks
 )
 {
-  if (!(num_blocks == (u32)0U))
+  u32 i;
+  u8* msg = m;
+  for (i = 0; i < num_blocks; i++)
   {
-    u8 *block = m;
-    u8 *m_ = m + (u32)16U;
-    u32 n1 = num_blocks - (u32)1U;
+    u8 *block = msg;
     Hacl_Poly1305_64_update_block(st, block);
-    Hacl_Poly1305_64_update(st, m_, n1);
+    msg = msg + (u32)16U;
   }
 }
 
