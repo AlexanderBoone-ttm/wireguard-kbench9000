@@ -49,11 +49,12 @@ static __always_inline int name(size_t len) \
 } while (0)
 
 #define report_it(name) do { \
-	char dec[20] = { 0 }; \
+	char dec[20]; \
 	size_t l; \
 	pr_err("%lu: %11s:", stamp, #name); \
 	for (j = 0, s = STARTING_SIZE; j <= DOUBLING_STEPS; ++j, s *= 2) { \
-		l = snprintf(dec, sizeof(dec) - 2, "%llu", 100ULL * (end_ ## name[j] - start_ ## name[j]) / TRIALS / s); \
+		memset(dec, 0, sizeof(dec)); \
+		l = scnprintf(dec, sizeof(dec) - 2, "%llu", 100ULL * (end_ ## name[j] - start_ ## name[j]) / TRIALS / s); \
 		dec[l] = dec[l - 1]; \
 		dec[l - 1] = dec[l - 2]; \
 		dec[l - 2] = '.'; \
@@ -62,7 +63,7 @@ static __always_inline int name(size_t len) \
 	printk(KERN_CONT "\n"); \
 } while (0)
 
-enum { WARMUP = 50000, TRIALS = 100000, IDLE = 1 * 1000, STARTING_SIZE = 128, DOUBLING_STEPS = 4 };
+enum { WARMUP = 50000, TRIALS = 100000, IDLE = 1 * 1000, STARTING_SIZE = 128, DOUBLING_STEPS = 5 };
 u8 dummy_out[POLY1305_MAC_SIZE];
 u8 input_key[POLY1305_KEY_SIZE];
 u8 input_data[STARTING_SIZE * (1ULL << DOUBLING_STEPS)];
