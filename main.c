@@ -6,6 +6,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <linux/random.h>
 #include <asm/cpufeature.h>
 #include <asm/processor.h>
 #include <asm/fpu/api.h>
@@ -15,31 +16,31 @@ static unsigned long stamp = 0;
 module_param(stamp, ulong, 0);
 int dummy;
 
-
 enum { POLY1305_MAC_SIZE = 16, POLY1305_KEY_SIZE = 32 };
-u8 dummy_out[POLY1305_MAC_SIZE];
 #include "test_vectors.h"
 
 #define declare_it(name) \
-  bool poly1305_ ## name(u8 tag[POLY1305_MAC_SIZE], const u8 * msg, const u32 len, const u8 key[POLY1305_KEY_SIZE]); \
-static __always_inline int name(void) \
+bool poly1305_ ## name(u8 tag[POLY1305_MAC_SIZE], const u8 * msg, const u32 len, const u8 key[POLY1305_KEY_SIZE]); \
+static __always_inline int name(size_t len) \
 { \
-  return poly1305_ ## name(dummy_out, poly1305_test_vectors[0].input.data, poly1305_test_vectors[0].input.size, poly1305_test_vectors[0].key.data); \
+	return poly1305_ ## name(dummy_out, input_data, len, input_key); \
 }
 
 #define do_it(name) do { \
 	for (i = 0; i < WARMUP; ++i) \
-		ret |= name(); \
-	start_ ## name = get_cycles(); \
-	for (i = 0; i < TRIALS; ++i) \
-		ret |= name(); \
-	end_ ## name = get_cycles(); \
+		ret |= name(sizeof(input_data)); \
+	for (j = 0, s = STARTING_SIZE; j <= DOUBLING_STEPS; ++j, s *= 2) { \
+		start_ ## name[j] = get_cycles(); \
+		for (i = 0; i < TRIALS; ++i) \
+			ret |= name(s); \
+		end_ ## name[j] = get_cycles(); \
+	} \
 } while (0)
 
 #define test_it(name, before, after) do { \
 	memset(out, __LINE__, POLY1305_MAC_SIZE); \
 	before; \
-	ret = poly1305_ ## name(out, poly1305_test_vectors[i].input.data,poly1305_test_vectors[i].input.size,poly1305_test_vectors[i].key.data); \
+	ret = poly1305_ ## name(out, poly1305_test_vectors[i].input.data, poly1305_test_vectors[i].input.size, poly1305_test_vectors[i].key.data); \
 	after; \
 	if (memcmp(out, poly1305_test_vectors[i].expected.data, POLY1305_MAC_SIZE)) { \
 		pr_err(#name " self-test %zu: FAIL\n", i + 1); \
@@ -48,9 +49,23 @@ static __always_inline int name(void) \
 } while (0)
 
 #define report_it(name) do { \
-	pr_err("%lu: %7s: %llu cycles per call\n", stamp, #name, (end_ ## name - start_ ## name) / TRIALS); \
+	char dec[20] = { 0 }; \
+	size_t l; \
+	pr_err("%lu: %7s:", stamp, #name); \
+	for (j = 0, s = STARTING_SIZE; j <= DOUBLING_STEPS; ++j, s *= 2) { \
+		l = snprintf(dec, sizeof(dec) - 2, "%llu", 100ULL * (end_ ## name[j] - start_ ## name[j]) / TRIALS / s); \
+		dec[l] = dec[l - 1]; \
+		dec[l - 1] = dec[l - 2]; \
+		dec[l - 2] = '.'; \
+		printk(KERN_CONT " %6s", dec); \
+	} \
+	printk(KERN_CONT "\n"); \
 } while (0)
 
+enum { WARMUP = 50000, TRIALS = 100000, IDLE = 1 * 1000, STARTING_SIZE = 128, DOUBLING_STEPS = 4 };
+u8 dummy_out[POLY1305_MAC_SIZE];
+u8 input_key[POLY1305_KEY_SIZE];
+u8 input_data[STARTING_SIZE * (1ULL << DOUBLING_STEPS)];
 
 declare_it(hacl64)
 declare_it(ref)
@@ -62,9 +77,7 @@ static bool verify(void)
 	u8 out[POLY1305_MAC_SIZE];
 
 	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
-	  		test_it(hacl64, {}, {});
-	}
-	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
+		test_it(hacl64, {}, {});
 		test_it(ref, {}, {});
 	}
 	return true;
@@ -72,15 +85,20 @@ static bool verify(void)
 
 static int __init mod_init(void)
 {
-	enum { WARMUP = 5000, TRIALS = 10000, IDLE = 1 * 1000 };
-	int ret = 0, i;
-	cycles_t start_hacl64, end_hacl64;
-	cycles_t start_ref, end_ref;
+	size_t s;
+	int ret = 0, i, j;
+	cycles_t start_hacl64[DOUBLING_STEPS + 1], end_hacl64[DOUBLING_STEPS + 1];
+	cycles_t start_ref[DOUBLING_STEPS + 1], end_ref[DOUBLING_STEPS + 1];
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
 	if (!verify())
 		return -EBFONT;
+
+	for (i = 0; i < sizeof(input_data); ++i)
+		input_data[i] = i;
+	for (i = 0; i < sizeof(input_key); ++i)
+		input_key[i] = i;
 	
 	msleep(IDLE);
 
@@ -91,6 +109,9 @@ static int __init mod_init(void)
 
 	spin_unlock_irqrestore(&lock, flags);
 	
+	pr_err("%lu:         ", stamp);
+	for (j = 0, s = STARTING_SIZE; j <= DOUBLING_STEPS; ++j, s *= 2) \
+		printk(KERN_CONT " \x1b[4m%6zu\x1b[24m", s);
 	report_it(hacl64);
 	report_it(ref);
 
