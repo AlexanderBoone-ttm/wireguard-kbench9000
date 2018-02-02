@@ -51,7 +51,7 @@ static __always_inline int name(size_t len) \
 #define report_it(name) do { \
 	char dec[20] = { 0 }; \
 	size_t l; \
-	pr_err("%lu: %7s:", stamp, #name); \
+	pr_err("%lu: %11s:", stamp, #name); \
 	for (j = 0, s = STARTING_SIZE; j <= DOUBLING_STEPS; ++j, s *= 2) { \
 		l = snprintf(dec, sizeof(dec) - 2, "%llu", 100ULL * (end_ ## name[j] - start_ ## name[j]) / TRIALS / s); \
 		dec[l] = dec[l - 1]; \
@@ -69,6 +69,10 @@ u8 input_data[STARTING_SIZE * (1ULL << DOUBLING_STEPS)];
 
 declare_it(hacl64)
 declare_it(ref)
+declare_it(ossl_amd64)
+declare_it(ossl_avx)
+declare_it(ossl_avx2)
+declare_it(ossl_avx512)
 
 static bool verify(void)
 {
@@ -79,6 +83,13 @@ static bool verify(void)
 	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
 		test_it(hacl64, {}, {});
 		test_it(ref, {}, {});
+		test_it(ossl_amd64, {}, {});
+		if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+			test_it(ossl_avx, kernel_fpu_begin(), kernel_fpu_end());
+		if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+			test_it(ossl_avx2, kernel_fpu_begin(), kernel_fpu_end());
+		if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && boot_cpu_has(X86_FEATURE_AVX512F) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM | XFEATURE_MASK_AVX512, NULL))
+			test_it(ossl_avx512, kernel_fpu_begin(), kernel_fpu_end());
 	}
 	return true;
 }
@@ -89,6 +100,10 @@ static int __init mod_init(void)
 	int ret = 0, i, j;
 	cycles_t start_hacl64[DOUBLING_STEPS + 1], end_hacl64[DOUBLING_STEPS + 1];
 	cycles_t start_ref[DOUBLING_STEPS + 1], end_ref[DOUBLING_STEPS + 1];
+	cycles_t start_ossl_amd64[DOUBLING_STEPS + 1], end_ossl_amd64[DOUBLING_STEPS + 1];
+	cycles_t start_ossl_avx[DOUBLING_STEPS + 1], end_ossl_avx[DOUBLING_STEPS + 1];
+	cycles_t start_ossl_avx2[DOUBLING_STEPS + 1], end_ossl_avx2[DOUBLING_STEPS + 1];
+	cycles_t start_ossl_avx512[DOUBLING_STEPS + 1], end_ossl_avx512[DOUBLING_STEPS + 1];
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
@@ -102,18 +117,37 @@ static int __init mod_init(void)
 	
 	msleep(IDLE);
 
+	kernel_fpu_begin();
+
 	spin_lock_irqsave(&lock, flags);
 
 	do_it(hacl64);
 	do_it(ref);
+	do_it(ossl_amd64);
+	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+		do_it(ossl_avx);
+	if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+		do_it(ossl_avx2);
+	if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && boot_cpu_has(X86_FEATURE_AVX512F) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM | XFEATURE_MASK_AVX512, NULL))
+		do_it(ossl_avx512);
 
 	spin_unlock_irqrestore(&lock, flags);
+
+
+	kernel_fpu_end();
 	
-	pr_err("%lu:         ", stamp);
+	pr_err("%lu:             ", stamp);
 	for (j = 0, s = STARTING_SIZE; j <= DOUBLING_STEPS; ++j, s *= 2) \
 		printk(KERN_CONT " \x1b[4m%6zu\x1b[24m", s);
 	report_it(hacl64);
 	report_it(ref);
+	report_it(ossl_amd64);
+	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+		report_it(ossl_avx);
+	if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+		report_it(ossl_avx2);
+	if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && boot_cpu_has(X86_FEATURE_AVX512F) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM | XFEATURE_MASK_AVX512, NULL))
+		report_it(ossl_avx512);
 
 	/* Don't let compiler be too clever. */
 	dummy = ret;
