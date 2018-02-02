@@ -10,7 +10,15 @@ nob_cpus() {
 
 noturbo() {
 	echo "[+] Setting no-turbo to status $1"
-	echo "$1" > /sys/devices/system/cpu/intel_pstate/no_turbo
+	if [[ -e /sys/devices/system/cpu/intel_pstate/no_turbo ]]; then
+		echo "$1" > /sys/devices/system/cpu/intel_pstate/no_turbo
+	else
+		local val
+		[[ $1 == 0 ]] && val=0x850089
+		[[ $1 == 1 ]] && val=0x4000850089
+		[[ -n $val ]] || return 0
+		wrmsr -a 0x1a0 $val
+	fi
 }
 
 [[ -e kbench9000.ko ]]
