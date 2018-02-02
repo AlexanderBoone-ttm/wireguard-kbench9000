@@ -8,9 +8,15 @@ nob_cpus() {
 	done
 }
 
+noturbo() {
+	echo "[+] Setting no-turbo to status $1"
+	echo "$1" > /sys/devices/system/cpu/intel_pstate/no_turbo
+}
+
 [[ -e kbench9000.ko ]]
 
-trap "nob_cpus 1" INT TERM EXIT
+trap "nob_cpus 1; noturbo 0;" INT TERM EXIT
+noturbo 1
 nob_cpus 0
 
 echo "[+] Inserting module to run tests"

@@ -87,7 +87,7 @@ static bool verify(void)
 
 static int __init mod_init(void)
 {
-	enum { WARMUP = 5000, TRIALS = 10000, IDLE = 1 * 1000 };
+	enum { WARMUP = 6000, TRIALS = 15000, IDLE = 1 * 1000 };
 	int ret = 0, i;
 	cycles_t start_donna64, end_donna64;
 	cycles_t start_hacl64, end_hacl64;
