@@ -70,6 +70,7 @@ u8 input_data[STARTING_SIZE * (1ULL << DOUBLING_STEPS)];
 
 declare_it(hacl64)
 declare_it(ref)
+declare_it(ossl_c)
 declare_it(ossl_amd64)
 declare_it(ossl_avx)
 declare_it(ossl_avx2)
@@ -84,6 +85,7 @@ static bool verify(void)
 	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
 		test_it(hacl64, {}, {});
 		test_it(ref, {}, {});
+		test_it(ossl_c, {}, {});
 		test_it(ossl_amd64, {}, {});
 		if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 			test_it(ossl_avx, kernel_fpu_begin(), kernel_fpu_end());
@@ -101,6 +103,7 @@ static int __init mod_init(void)
 	int ret = 0, i, j;
 	cycles_t start_hacl64[DOUBLING_STEPS + 1], end_hacl64[DOUBLING_STEPS + 1];
 	cycles_t start_ref[DOUBLING_STEPS + 1], end_ref[DOUBLING_STEPS + 1];
+	cycles_t start_ossl_c[DOUBLING_STEPS + 1], end_ossl_c[DOUBLING_STEPS + 1];
 	cycles_t start_ossl_amd64[DOUBLING_STEPS + 1], end_ossl_amd64[DOUBLING_STEPS + 1];
 	cycles_t start_ossl_avx[DOUBLING_STEPS + 1], end_ossl_avx[DOUBLING_STEPS + 1];
 	cycles_t start_ossl_avx2[DOUBLING_STEPS + 1], end_ossl_avx2[DOUBLING_STEPS + 1];
@@ -124,6 +127,7 @@ static int __init mod_init(void)
 
 	do_it(hacl64);
 	do_it(ref);
+	do_it(ossl_c);
 	do_it(ossl_amd64);
 	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 		do_it(ossl_avx);
@@ -142,6 +146,7 @@ static int __init mod_init(void)
 		printk(KERN_CONT " \x1b[4m%6zu\x1b[24m", s);
 	report_it(hacl64);
 	report_it(ref);
+	report_it(ossl_c);
 	report_it(ossl_amd64);
 	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 		report_it(ossl_avx);
