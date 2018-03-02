@@ -1647,16 +1647,18 @@ static __always_inline void fred_eltfp25519_1w(u64 *const c)
 		: "memory", "cc", "%rax", "%rbx", "%rcx", "%rdx");
 }
 
-static __always_inline void cswap(u64 bit, u64 *const px, u64 *const py)
+static __always_inline void cselect(u8 bit, u64 *const px, u64 *const py)
 {
-	int i;
-	u64 mask = 0ULL - bit;
-
-	for (i = 0; i < NUM_WORDS_ELTFP25519; ++i) {
-		u64 t = mask & (px[i] ^ py[i]);
-		px[i] = px[i] ^ t;
-		py[i] = py[i] ^ t;
-	}
+	__asm__ __volatile__ (
+		"test %4, %4 ;"
+		"cmovnzq %5, %0 ;"
+		"cmovnzq %6, %1 ;"
+		"cmovnzq %7, %2 ;"
+		"cmovnzq %8, %3 ;"
+		: "+r"(px[0]), "+r"(px[1]), "+r"(px[2]), "+r"(px[3])
+		: "r"(bit), "rm"(py[0]), "rm"(py[1]), "rm"(py[2]), "rm"(py[3])
+		: "cc"
+	);
 }
 
 bool curve25519_precomp_adx(u8 shared[CURVE25519_POINT_SIZE], const u8 private_key[CURVE25519_POINT_SIZE], const u8 session_key[CURVE25519_POINT_SIZE])
@@ -1732,8 +1734,8 @@ bool curve25519_precomp_adx(u8 shared[CURVE25519_POINT_SIZE], const u8 private_k
 			sub_eltfp25519_1w(D, X3, Z3);	/* D = (X3-Z3) */
 			mul_eltfp25519_2w_adx(DACB, AB, DC); /* [DA|CB] = [A|B]*[D|C] */
 
-			cswap(swap, A, C);
-			cswap(swap, B, D);
+			cselect(swap, A, C);
+			cselect(swap, B, D);
 
 			sqr_eltfp25519_2w_adx(AB);	 /* [AA|BB] = [A^2|B^2] */
 			add_eltfp25519_1w_adx(X3, DA, CB); /* X3 = (DA+CB) */
@@ -1832,8 +1834,8 @@ bool curve25519_precomp_bmi2(u8 shared[CURVE25519_POINT_SIZE], const u8 private_
 			sub_eltfp25519_1w(D, X3, Z3);	 /* D = (X3-Z3) */
 			mul_eltfp25519_2w_bmi2(DACB, AB, DC); /* [DA|CB] = [A|B]*[D|C] */
 
-			cswap(swap, A, C);
-			cswap(swap, B, D);
+			cselect(swap, A, C);
+			cselect(swap, B, D);
 
 			sqr_eltfp25519_2w_bmi2(AB);		/* [AA|BB] = [A^2|B^2] */
 			add_eltfp25519_1w_bmi2(X3, DA, CB); /* X3 = (DA+CB) */
