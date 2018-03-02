@@ -28,8 +28,10 @@ static __always_inline int name(void) \
 }
 
 #define do_it(name) do { \
+	u32 eax = 0, ebx = 0, ecx = 0, edx = 0; \
 	for (i = 0; i < WARMUP; ++i) \
 		ret |= name(); \
+	asm volatile("cpuid" : "+a" (eax), "=b" (ebx), "=d" (edx), "+c" (ecx)); \
 	start_ ## name = get_cycles(); \
 	for (i = 0; i < TRIALS; ++i) \
 		ret |= name(); \
