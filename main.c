@@ -63,6 +63,7 @@ declare_it(precomp_bmi2)
 declare_it(precomp_adx)
 declare_it(fiat32)
 declare_it(donna32)
+declare_it(tweetnacl)
 
 static bool verify(void)
 {
@@ -83,6 +84,7 @@ static bool verify(void)
 		test_it(amd64, {}, {});
 		test_it(fiat32, {}, {});
 		test_it(donna32, {}, {});
+		test_it(tweetnacl, {}, {});
 	}
 	return true;
 }
@@ -100,6 +102,7 @@ static int __init mod_init(void)
 	cycles_t start_precomp_adx = 0, end_precomp_adx = 0;
 	cycles_t start_fiat32, end_fiat32;
 	cycles_t start_donna32, end_donna32;
+	cycles_t start_tweetnacl, end_tweetnacl;
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
@@ -125,6 +128,7 @@ static int __init mod_init(void)
 	do_it(amd64);
 	do_it(fiat32);
 	do_it(donna32);
+	do_it(tweetnacl);
 
 	spin_unlock_irqrestore(&lock, flags);
 	
@@ -140,6 +144,7 @@ static int __init mod_init(void)
 	report_it(amd64);
 	report_it(fiat32);
 	report_it(donna32);
+	report_it(tweetnacl);
 
 	/* Don't let compiler be too clever. */
 	dummy = ret;
