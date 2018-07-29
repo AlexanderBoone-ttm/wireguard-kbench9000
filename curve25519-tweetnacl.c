@@ -19,7 +19,7 @@ static __always_inline void normalize_secret(u8 secret[CURVE25519_POINT_SIZE])
 
 typedef s64 fe[16];
 
-static void carry(fe o)
+static inline void carry(fe o)
 {
 	int i;
 
@@ -29,7 +29,7 @@ static void carry(fe o)
 	}
 }
 
-static void cswap(fe p, fe q, int b)
+static inline void cswap(fe p, fe q, int b)
 {
 	int i;
 	s64 t, c = ~(b - 1);
@@ -41,7 +41,7 @@ static void cswap(fe p, fe q, int b)
 	}
 }
 
-static void pack(u8 *o, const fe n)
+static inline void pack(u8 *o, const fe n)
 {
 	int i, j, b;
 	fe m, t;
@@ -67,7 +67,7 @@ static void pack(u8 *o, const fe n)
 	}
 }
 
-static void unpack(fe o, const u8 *n)
+static inline void unpack(fe o, const u8 *n)
 {
 	int i;
 
@@ -76,7 +76,7 @@ static void unpack(fe o, const u8 *n)
 	o[15] &= 0x7fff;
 }
 
-static void add(fe o, const fe a, const fe b)
+static inline void add(fe o, const fe a, const fe b)
 {
 	int i;
 
@@ -84,7 +84,7 @@ static void add(fe o, const fe a, const fe b)
 		o[i] = a[i] + b[i];
 }
 
-static void subtract(fe o, const fe a, const fe b)
+static inline void subtract(fe o, const fe a, const fe b)
 {
 	int i;
 
@@ -92,7 +92,7 @@ static void subtract(fe o, const fe a, const fe b)
 		o[i] = a[i] - b[i];
 }
 
-static void multmod(fe o, const fe a, const fe b)
+static inline void multmod(fe o, const fe a, const fe b)
 {
 	int i, j;
 	s64 t[31] = { 0 };
@@ -108,7 +108,7 @@ static void multmod(fe o, const fe a, const fe b)
 	carry(o);
 }
 
-static void invert(fe o, const fe i)
+static inline void invert(fe o, const fe i)
 {
 	fe c;
 	int a;
