@@ -15,6 +15,8 @@ static unsigned long stamp = 0;
 module_param(stamp, ulong, 0);
 int dummy;
 
+static bool dangerous = false;
+module_param(dangerous, bool, 0600);
 
 enum { CURVE25519_POINT_SIZE = 32 };
 u8 dummy_out[CURVE25519_POINT_SIZE];
@@ -81,7 +83,8 @@ static bool verify(void)
 			test_it(precomp_bmi2, {}, {});
 		if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX))
 			test_it(precomp_adx, {}, {});
-		test_it(amd64, {}, {});
+		if (dangerous)
+			test_it(amd64, {}, {});
 		test_it(fiat32, {}, {});
 		test_it(donna32, {}, {});
 		test_it(tweetnacl, {}, {});
@@ -97,7 +100,7 @@ static int __init mod_init(void)
 	cycles_t start_hacl64, end_hacl64;
 	cycles_t start_fiat64, end_fiat64;
 	cycles_t start_sandy2x = 0, end_sandy2x = 0;
-	cycles_t start_amd64, end_amd64;
+	cycles_t start_amd64 = 0, end_amd64 = 0;
 	cycles_t start_precomp_bmi2 = 0, end_precomp_bmi2 = 0;
 	cycles_t start_precomp_adx = 0, end_precomp_adx = 0;
 	cycles_t start_fiat32, end_fiat32;
@@ -125,7 +128,8 @@ static int __init mod_init(void)
 		do_it(precomp_bmi2);
 	if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX))
 		do_it(precomp_adx);
-	do_it(amd64);
+	if (dangerous)
+		do_it(amd64);
 	do_it(fiat32);
 	do_it(donna32);
 	do_it(tweetnacl);
@@ -141,7 +145,8 @@ static int __init mod_init(void)
 		report_it(precomp_bmi2);
 	if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX))
 		report_it(precomp_adx);
-	report_it(amd64);
+	if (dangerous)
+		report_it(amd64);
 	report_it(fiat32);
 	report_it(donna32);
 	report_it(tweetnacl);
