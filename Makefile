@@ -1,5 +1,5 @@
 ifneq ($(KERNELRELEASE),)
-kbench9000-y := main.o poly1305-hacl64.o poly1305-ref.o poly1305-openssl-asm.o poly1305-openssl.o
+kbench9000-y := main.o poly1305-hacl64.o poly1305-ref.o poly1305-openssl-asm.o poly1305-openssl.o poly1305-donna32.o poly1305-donna64.o
 obj-m := kbench9000.o
 ccflags-y += -O3
 ccflags-y += -D'pr_fmt(fmt)=KBUILD_MODNAME ": " fmt'

@@ -9,6 +9,7 @@
 #include <asm/cpufeature.h>
 #include <asm/processor.h>
 #include <asm/intel-family.h>
+#include <asm/unaligned.h>
 
 asmlinkage void poly1305_init_x86_64(void *ctx, const u8 key[16]);
 asmlinkage void poly1305_blocks_x86_64(void *ctx, const u8 *inp, size_t len, u32 padbit);
@@ -31,11 +32,6 @@ struct poly1305_ctx {
 	size_t num;
 } __aligned(8);
 
-static inline u32 le32_to_cpuvp(const void *p)
-{
-	return le32_to_cpup(p);
-}
-
 struct poly1305_internal {
 	u32 h[5];
 	u32 r[4];
@@ -53,15 +49,17 @@ static void poly1305_init_generic(void *ctx, const u8 key[16])
 	st->h[4] = 0;
 
 	/* r &= 0xffffffc0ffffffc0ffffffc0fffffff */
-	st->r[0] = le32_to_cpuvp(&key[ 0]) & 0x0fffffff;
-	st->r[1] = le32_to_cpuvp(&key[ 4]) & 0x0ffffffc;
-	st->r[2] = le32_to_cpuvp(&key[ 8]) & 0x0ffffffc;
-	st->r[3] = le32_to_cpuvp(&key[12]) & 0x0ffffffc;
+	st->r[0] = get_unaligned_le32(&key[0]) & 0x0fffffff;
+	st->r[1] = get_unaligned_le32(&key[4]) & 0x0ffffffc;
+	st->r[2] = get_unaligned_le32(&key[8]) & 0x0ffffffc;
+	st->r[3] = get_unaligned_le32(&key[12]) & 0x0ffffffc;
 }
 
-static void poly1305_blocks_generic(void *ctx, const u8 *inp, size_t len, u32 padbit)
+static void poly1305_blocks_generic(void *ctx, const u8 *inp, size_t len,
+				    const u32 padbit)
 {
-#define CONSTANT_TIME_CARRY(a,b) ((a ^ ((a ^ b) | ((a - b) ^ b))) >> (sizeof(a) * 8 - 1))
+#define CONSTANT_TIME_CARRY(a, b)                                              \
+	((a ^ ((a ^ b) | ((a - b) ^ b))) >> (sizeof(a) * 8 - 1))
 	struct poly1305_internal *st = (struct poly1305_internal *)ctx;
 	u32 r0, r1, r2, r3;
 	u32 s1, s2, s3;
@@ -85,10 +83,10 @@ static void poly1305_blocks_generic(void *ctx, const u8 *inp, size_t len, u32 pa
 
 	while (len >= POLY1305_BLOCK_SIZE) {
 		/* h += m[i] */
-		h0 = (u32)(d0 = (u64)h0 + le32_to_cpuvp(inp + 0));
-		h1 = (u32)(d1 = (u64)h1 + (d0 >> 32) + le32_to_cpuvp(inp + 4));
-		h2 = (u32)(d2 = (u64)h2 + (d1 >> 32) + le32_to_cpuvp(inp + 8));
-		h3 = (u32)(d3 = (u64)h3 + (d2 >> 32) + le32_to_cpuvp(inp + 12));
+		h0 = (u32)(d0 = (u64)h0 + (0       ) + get_unaligned_le32(&inp[0]));
+		h1 = (u32)(d1 = (u64)h1 + (d0 >> 32) + get_unaligned_le32(&inp[4]));
+		h2 = (u32)(d2 = (u64)h2 + (d1 >> 32) + get_unaligned_le32(&inp[8]));
+		h3 = (u32)(d3 = (u64)h3 + (d2 >> 32) + get_unaligned_le32(&inp[12]));
 		h4 += (u32)(d3 >> 32) + padbit;
 
 		/* h *= r "%" p, where "%" stands for "partial remainder" */
@@ -124,10 +122,10 @@ static void poly1305_blocks_generic(void *ctx, const u8 *inp, size_t len, u32 pa
 		c = (h4 >> 2) + (h4 & ~3U);
 		h4 &= 3;
 		h0 += c;
-		h1 += (c = CONSTANT_TIME_CARRY(h0,c));
-		h2 += (c = CONSTANT_TIME_CARRY(h1,c));
-		h3 += (c = CONSTANT_TIME_CARRY(h2,c));
-		h4 += CONSTANT_TIME_CARRY(h3,c);
+		h1 += (c = CONSTANT_TIME_CARRY(h0, c));
+		h2 += (c = CONSTANT_TIME_CARRY(h1, c));
+		h3 += (c = CONSTANT_TIME_CARRY(h2, c));
+		h4 += CONSTANT_TIME_CARRY(h3, c);
 		/*
 		 * Occasional overflows to 3rd bit of h4 are taken care of
 		 * "naturally". If after this point we end up at the top of
@@ -153,7 +151,6 @@ static void poly1305_blocks_generic(void *ctx, const u8 *inp, size_t len, u32 pa
 static void poly1305_emit_generic(void *ctx, u8 mac[16], const u32 nonce[4])
 {
 	struct poly1305_internal *st = (struct poly1305_internal *)ctx;
-	__le32 *omac = (__force __le32 *)mac;
 	u32 h0, h1, h2, h3, h4;
 	u32 g0, g1, g2, g3, g4;
 	u64 t;
@@ -190,20 +187,21 @@ static void poly1305_emit_generic(void *ctx, u8 mac[16], const u32 nonce[4])
 	h2 = (u32)(t = (u64)h2 + (t >> 32) + nonce[2]);
 	h3 = (u32)(t = (u64)h3 + (t >> 32) + nonce[3]);
 
-	omac[0] = cpu_to_le32(h0);
-	omac[1] = cpu_to_le32(h1);
-	omac[2] = cpu_to_le32(h2);
-	omac[3] = cpu_to_le32(h3);
+	put_unaligned_le32(h0, &mac[0]);
+	put_unaligned_le32(h1, &mac[4]);
+	put_unaligned_le32(h2, &mac[8]);
+	put_unaligned_le32(h3, &mac[12]);
 }
+
 
 void poly1305_ossl_c(unsigned char *out, const unsigned char *in, unsigned long long inlen, const unsigned char *k)
 {
 	size_t rem;
 	struct poly1305_ctx ctx;
-	ctx.nonce[0] = le32_to_cpuvp(&k[16]);
-	ctx.nonce[1] = le32_to_cpuvp(&k[20]);
-	ctx.nonce[2] = le32_to_cpuvp(&k[24]);
-	ctx.nonce[3] = le32_to_cpuvp(&k[28]);
+	ctx.nonce[0] = get_unaligned_le32(&k[16]);
+	ctx.nonce[1] = get_unaligned_le32(&k[20]);
+	ctx.nonce[2] = get_unaligned_le32(&k[24]);
+	ctx.nonce[3] = get_unaligned_le32(&k[28]);
 	poly1305_init_generic(ctx.opaque, k);
 	ctx.num = 0;
 
@@ -229,10 +227,10 @@ void poly1305_ossl_amd64(unsigned char *out, const unsigned char *in, unsigned l
 {
 	size_t rem;
 	struct poly1305_ctx ctx;
-	ctx.nonce[0] = le32_to_cpuvp(&k[16]);
-	ctx.nonce[1] = le32_to_cpuvp(&k[20]);
-	ctx.nonce[2] = le32_to_cpuvp(&k[24]);
-	ctx.nonce[3] = le32_to_cpuvp(&k[28]);
+	ctx.nonce[0] = get_unaligned_le32(&k[16]);
+	ctx.nonce[1] = get_unaligned_le32(&k[20]);
+	ctx.nonce[2] = get_unaligned_le32(&k[24]);
+	ctx.nonce[3] = get_unaligned_le32(&k[28]);
 	poly1305_init_x86_64(ctx.opaque, k);
 	ctx.num = 0;
 
@@ -258,10 +256,10 @@ void poly1305_ossl_avx(unsigned char *out, const unsigned char *in, unsigned lon
 {
 	size_t rem;
 	struct poly1305_ctx ctx;
-	ctx.nonce[0] = le32_to_cpuvp(&k[16]);
-	ctx.nonce[1] = le32_to_cpuvp(&k[20]);
-	ctx.nonce[2] = le32_to_cpuvp(&k[24]);
-	ctx.nonce[3] = le32_to_cpuvp(&k[28]);
+	ctx.nonce[0] = get_unaligned_le32(&k[16]);
+	ctx.nonce[1] = get_unaligned_le32(&k[20]);
+	ctx.nonce[2] = get_unaligned_le32(&k[24]);
+	ctx.nonce[3] = get_unaligned_le32(&k[28]);
 	poly1305_init_x86_64(ctx.opaque, k);
 	ctx.num = 0;
 
@@ -287,10 +285,10 @@ void poly1305_ossl_avx2(unsigned char *out, const unsigned char *in, unsigned lo
 {
 	size_t rem;
 	struct poly1305_ctx ctx;
-	ctx.nonce[0] = le32_to_cpuvp(&k[16]);
-	ctx.nonce[1] = le32_to_cpuvp(&k[20]);
-	ctx.nonce[2] = le32_to_cpuvp(&k[24]);
-	ctx.nonce[3] = le32_to_cpuvp(&k[28]);
+	ctx.nonce[0] = get_unaligned_le32(&k[16]);
+	ctx.nonce[1] = get_unaligned_le32(&k[20]);
+	ctx.nonce[2] = get_unaligned_le32(&k[24]);
+	ctx.nonce[3] = get_unaligned_le32(&k[28]);
 	poly1305_init_x86_64(ctx.opaque, k);
 	ctx.num = 0;
 
@@ -316,10 +314,10 @@ void poly1305_ossl_avx512(unsigned char *out, const unsigned char *in, unsigned 
 {
 	size_t rem;
 	struct poly1305_ctx ctx;
-	ctx.nonce[0] = le32_to_cpuvp(&k[16]);
-	ctx.nonce[1] = le32_to_cpuvp(&k[20]);
-	ctx.nonce[2] = le32_to_cpuvp(&k[24]);
-	ctx.nonce[3] = le32_to_cpuvp(&k[28]);
+	ctx.nonce[0] = get_unaligned_le32(&k[16]);
+	ctx.nonce[1] = get_unaligned_le32(&k[20]);
+	ctx.nonce[2] = get_unaligned_le32(&k[24]);
+	ctx.nonce[3] = get_unaligned_le32(&k[28]);
 	poly1305_init_x86_64(ctx.opaque, k);
 	ctx.num = 0;
 

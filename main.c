@@ -75,6 +75,8 @@ declare_it(ossl_amd64)
 declare_it(ossl_avx)
 declare_it(ossl_avx2)
 declare_it(ossl_avx512)
+declare_it(donna32)
+declare_it(donna64)
 
 static bool verify(void)
 {
@@ -86,6 +88,8 @@ static bool verify(void)
 		test_it(hacl64, {}, {});
 		test_it(ref, {}, {});
 		test_it(ossl_c, {}, {});
+		test_it(donna32, {}, {});
+		test_it(donna64, {}, {});
 		test_it(ossl_amd64, {}, {});
 		if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 			test_it(ossl_avx, kernel_fpu_begin(), kernel_fpu_end());
@@ -108,6 +112,8 @@ static int __init mod_init(void)
 	cycles_t start_ossl_avx[DOUBLING_STEPS + 1], end_ossl_avx[DOUBLING_STEPS + 1];
 	cycles_t start_ossl_avx2[DOUBLING_STEPS + 1], end_ossl_avx2[DOUBLING_STEPS + 1];
 	cycles_t start_ossl_avx512[DOUBLING_STEPS + 1], end_ossl_avx512[DOUBLING_STEPS + 1];
+	cycles_t start_donna32[DOUBLING_STEPS + 1], end_donna32[DOUBLING_STEPS + 1];
+	cycles_t start_donna64[DOUBLING_STEPS + 1], end_donna64[DOUBLING_STEPS + 1];
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
@@ -128,6 +134,8 @@ static int __init mod_init(void)
 	do_it(hacl64);
 	do_it(ref);
 	do_it(ossl_c);
+	do_it(donna32);
+	do_it(donna64);
 	do_it(ossl_amd64);
 	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 		do_it(ossl_avx);
@@ -147,6 +155,8 @@ static int __init mod_init(void)
 	report_it(hacl64);
 	report_it(ref);
 	report_it(ossl_c);
+	report_it(donna32);
+	report_it(donna64);
 	report_it(ossl_amd64);
 	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 		report_it(ossl_avx);
