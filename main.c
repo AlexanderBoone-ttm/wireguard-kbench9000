@@ -40,9 +40,9 @@ static __always_inline int name(size_t len) \
 #define test_it(name, before, after) do { \
 	memset(out, __LINE__, POLY1305_MAC_SIZE); \
 	before; \
-	ret = poly1305_ ## name(out, poly1305_test_vectors[i].input.data, poly1305_test_vectors[i].input.size, poly1305_test_vectors[i].key.data); \
+	ret = poly1305_ ## name(out, poly1305_testvecs[i].input, poly1305_testvecs[i].ilen, poly1305_testvecs[i].key); \
 	after; \
-	if (memcmp(out, poly1305_test_vectors[i].expected.data, POLY1305_MAC_SIZE)) { \
+	if (memcmp(out, poly1305_testvecs[i].output, POLY1305_MAC_SIZE)) { \
 		pr_err(#name " self-test %zu: FAIL\n", i + 1); \
 		return false; \
 	} \
@@ -68,7 +68,6 @@ u8 dummy_out[POLY1305_MAC_SIZE];
 u8 input_key[POLY1305_KEY_SIZE];
 u8 input_data[STARTING_SIZE * (1ULL << DOUBLING_STEPS)];
 
-declare_it(hacl64)
 declare_it(ref)
 declare_it(ossl_c)
 declare_it(ossl_amd64)
@@ -77,6 +76,8 @@ declare_it(ossl_avx2)
 declare_it(ossl_avx512)
 declare_it(donna32)
 declare_it(donna64)
+declare_it(hacl32)
+declare_it(hacl64)
 
 static bool verify(void)
 {
@@ -84,12 +85,13 @@ static bool verify(void)
 	size_t i = 0;
 	u8 out[POLY1305_MAC_SIZE];
 
-	for (i = 0; i < ARRAY_SIZE(poly1305_test_vectors); ++i) {
-		test_it(hacl64, {}, {});
+	for (i = 0; i < ARRAY_SIZE(poly1305_testvecs); ++i) {
 		test_it(ref, {}, {});
 		test_it(ossl_c, {}, {});
 		test_it(donna32, {}, {});
 		test_it(donna64, {}, {});
+		test_it(hacl32, {}, {});
+		test_it(hacl64, {}, {});
 		test_it(ossl_amd64, {}, {});
 		if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 			test_it(ossl_avx, kernel_fpu_begin(), kernel_fpu_end());
@@ -105,7 +107,6 @@ static int __init mod_init(void)
 {
 	size_t s;
 	int ret = 0, i, j;
-	cycles_t start_hacl64[DOUBLING_STEPS + 1], end_hacl64[DOUBLING_STEPS + 1];
 	cycles_t start_ref[DOUBLING_STEPS + 1], end_ref[DOUBLING_STEPS + 1];
 	cycles_t start_ossl_c[DOUBLING_STEPS + 1], end_ossl_c[DOUBLING_STEPS + 1];
 	cycles_t start_ossl_amd64[DOUBLING_STEPS + 1], end_ossl_amd64[DOUBLING_STEPS + 1];
@@ -114,6 +115,8 @@ static int __init mod_init(void)
 	cycles_t start_ossl_avx512[DOUBLING_STEPS + 1], end_ossl_avx512[DOUBLING_STEPS + 1];
 	cycles_t start_donna32[DOUBLING_STEPS + 1], end_donna32[DOUBLING_STEPS + 1];
 	cycles_t start_donna64[DOUBLING_STEPS + 1], end_donna64[DOUBLING_STEPS + 1];
+	cycles_t start_hacl32[DOUBLING_STEPS + 1], end_hacl32[DOUBLING_STEPS + 1];
+	cycles_t start_hacl64[DOUBLING_STEPS + 1], end_hacl64[DOUBLING_STEPS + 1];
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
@@ -131,11 +134,12 @@ static int __init mod_init(void)
 
 	spin_lock_irqsave(&lock, flags);
 
-	do_it(hacl64);
 	do_it(ref);
 	do_it(ossl_c);
 	do_it(donna32);
 	do_it(donna64);
+	do_it(hacl32);
+	do_it(hacl64);
 	do_it(ossl_amd64);
 	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 		do_it(ossl_avx);
@@ -152,11 +156,12 @@ static int __init mod_init(void)
 	pr_err("%lu:             ", stamp);
 	for (j = 0, s = STARTING_SIZE; j <= DOUBLING_STEPS; ++j, s *= 2) \
 		printk(KERN_CONT " \x1b[4m%6zu\x1b[24m", s);
-	report_it(hacl64);
 	report_it(ref);
 	report_it(ossl_c);
 	report_it(donna32);
 	report_it(donna64);
+	report_it(hacl32);
+	report_it(hacl64);
 	report_it(ossl_amd64);
 	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 		report_it(ossl_avx);
