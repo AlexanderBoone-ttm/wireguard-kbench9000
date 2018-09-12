@@ -78,6 +78,9 @@ declare_it(donna32)
 declare_it(donna64)
 declare_it(hacl32)
 declare_it(hacl64)
+declare_it(hacl32x1)
+declare_it(hacl128)
+declare_it(hacl256)
 
 static bool verify(void)
 {
@@ -91,7 +94,12 @@ static bool verify(void)
 		test_it(donna32, {}, {});
 		test_it(donna64, {}, {});
 		test_it(hacl32, {}, {});
+		test_it(hacl32x1, {}, {});
 		test_it(hacl64, {}, {});
+		if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+		  test_it(hacl128, kernel_fpu_begin(), kernel_fpu_end());
+		if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+		  test_it(hacl256, kernel_fpu_begin(), kernel_fpu_end());
 		test_it(ossl_amd64, {}, {});
 		if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 			test_it(ossl_avx, kernel_fpu_begin(), kernel_fpu_end());
@@ -116,6 +124,10 @@ static int __init mod_init(void)
 	cycles_t start_donna32[DOUBLING_STEPS + 1], end_donna32[DOUBLING_STEPS + 1];
 	cycles_t start_donna64[DOUBLING_STEPS + 1], end_donna64[DOUBLING_STEPS + 1];
 	cycles_t start_hacl32[DOUBLING_STEPS + 1], end_hacl32[DOUBLING_STEPS + 1];
+	
+	cycles_t start_hacl32x1[DOUBLING_STEPS + 1], end_hacl32x1[DOUBLING_STEPS + 1];
+	cycles_t start_hacl128[DOUBLING_STEPS + 1], end_hacl128[DOUBLING_STEPS + 1];
+	cycles_t start_hacl256[DOUBLING_STEPS + 1], end_hacl256[DOUBLING_STEPS + 1];
 	cycles_t start_hacl64[DOUBLING_STEPS + 1], end_hacl64[DOUBLING_STEPS + 1];
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
@@ -139,6 +151,11 @@ static int __init mod_init(void)
 	do_it(donna32);
 	do_it(donna64);
 	do_it(hacl32);
+	do_it(hacl32x1);
+	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+	  do_it(hacl128);
+	if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+	  do_it(hacl256);
 	do_it(hacl64);
 	do_it(ossl_amd64);
 	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
@@ -161,7 +178,12 @@ static int __init mod_init(void)
 	report_it(donna32);
 	report_it(donna64);
 	report_it(hacl32);
+	report_it(hacl32x1);
 	report_it(hacl64);
+	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+	  report_it(hacl128);
+	if (boot_cpu_has(X86_FEATURE_AVX) && boot_cpu_has(X86_FEATURE_AVX2) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+	  report_it(hacl256);
 	report_it(ossl_amd64);
 	if (boot_cpu_has(X86_FEATURE_AVX) && cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
 		report_it(ossl_avx);
