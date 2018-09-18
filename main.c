@@ -42,7 +42,7 @@ declare_it(ard_neon)
 
 static int __init mod_init(void)
 {
-	enum { WARMUP = 500, TRIALS = 5000, IDLE = 1 * 1000, STEP = 32, STEPS = 128 };
+	enum { WARMUP = 1000, TRIALS = 20000, IDLE = 1 * 1000, STEP = 32, STEPS = 128 };
 	u32 key[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 	u32 counter[4] = { 1, 2, 3, 4 };
 	u8 *input = NULL, *output = NULL;
