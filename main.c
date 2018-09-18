@@ -6,98 +6,88 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <linux/slab.h>
+#include <linux/sort.h>
 #include <asm/neon.h>
 
 static unsigned long stamp = 0;
 module_param(stamp, ulong, 0);
-int dummy;
 
+#define declare_it(name) void chacha20_ ## name(u8 *dst, const u8 *src, u32 len, const u32 key[8], const u32 counter[4]);
 
-enum { CURVE25519_POINT_SIZE = 32 };
-u8 dummy_out[CURVE25519_POINT_SIZE];
-#include "test_vectors.h"
-
-#define declare_it(name) \
-bool curve25519_ ## name(u8 mypublic[CURVE25519_POINT_SIZE], const u8 secret[CURVE25519_POINT_SIZE], const u8 basepoint[CURVE25519_POINT_SIZE]); \
-static __always_inline int name(void) \
-{ \
-	return curve25519_ ## name(dummy_out, curve25519_test_vectors[0].private, curve25519_test_vectors[0].public); \
-}
-
-#define do_it(name) do { \
-	for (i = 0; i < WARMUP; ++i) \
-		ret |= name(); \
-	start_ ## name = get_cycles(); \
-	for (i = 0; i < TRIALS; ++i) \
-		ret |= name(); \
-	end_ ## name = get_cycles(); \
-} while (0)
-
-#define test_it(name, before, after) do { \
-	memset(out, __LINE__, CURVE25519_POINT_SIZE); \
-	before; \
-	ret = curve25519_ ## name(out, curve25519_test_vectors[i].private, curve25519_test_vectors[i].public); \
-	after; \
-	if (memcmp(out, curve25519_test_vectors[i].result, CURVE25519_POINT_SIZE)) { \
-		pr_err(#name " self-test %zu: FAIL\n", i + 1); \
-		return false; \
-	} \
-} while (0)
-
-#define report_it(name) do { \
-	pr_err("%lu: %7s: %lu cycles per call\n", stamp, #name, (end_ ## name - start_ ## name) / TRIALS); \
-} while (0)
-
-
-declare_it(neon)
-declare_it(fiat32)
-declare_it(donna32)
-
-static bool verify(void)
+static int compare_cycles(const void *a, const void *b)
 {
-	int ret;
-	size_t i = 0;
-	u8 out[CURVE25519_POINT_SIZE];
-
-	for (i = 0; i < ARRAY_SIZE(curve25519_test_vectors); ++i) {
-		test_it(neon, { kernel_neon_begin(); }, { kernel_neon_end(); });
-		test_it(fiat32, {}, {});
-		test_it(donna32, {}, {});
-	}
-	return true;
+	return *((cycles_t *)a) - *((cycles_t *)b);
 }
+
+#define do_it(name, len, before, after) ({ \
+	before; \
+	for (j = 0; j < WARMUP; ++j) \
+		chacha20_ ## name(output, input, len, key, counter); \
+	for (j = 0; j <= TRIALS; ++j) { \
+		trial_times[j] = get_cycles(); \
+		chacha20_ ## name(output, input, len, key, counter); \
+	} \
+	after; \
+	for (j = 0; j < TRIALS; ++j) \
+		trial_times[j] = trial_times[j + 1] - trial_times[j]; \
+	sort(trial_times, TRIALS + 1, sizeof(cycles_t), compare_cycles, NULL); \
+	trial_times[TRIALS / 2]; \
+})
+
+declare_it(generic)
+declare_it(ossl_scalar)
+declare_it(ossl_neon)
+declare_it(ard_neon)
 
 static int __init mod_init(void)
 {
-	enum { WARMUP = 5000, TRIALS = 10000, IDLE = 1 * 1000 };
-	int ret = 0, i;
-	cycles_t start_neon, end_neon;
-	cycles_t start_fiat32, end_fiat32;
-	cycles_t start_donna32, end_donna32;
+	enum { WARMUP = 500, TRIALS = 5000, IDLE = 1 * 1000, STEP = 32, STEPS = 128 };
+	u32 key[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+	u32 counter[4] = { 1, 2, 3, 4 };
+	u8 *input = NULL, *output = NULL;
+	cycles_t *trial_times = NULL;
+	cycles_t median_generic[STEPS], median_ossl_scalar[STEPS], median_ossl_neon[STEPS], median_ard_neon[STEPS];
+	size_t i, j;
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
-	if (!verify())
-		return -EBFONT;
+	trial_times = kcalloc(TRIALS + 1, sizeof(cycles_t), GFP_KERNEL);
+	if (!trial_times)
+		goto out;
+	input = kcalloc(STEP, STEPS, GFP_KERNEL);
+	if (!input)
+		goto out;
+	output = kcalloc(STEP, STEPS, GFP_KERNEL);
+	if (!output)
+		goto out;
+
+	for (i = 0; i < (STEP * STEPS); ++i)
+		input[i] = i;
 	
 	msleep(IDLE);
 
 	spin_lock_irqsave(&lock, flags);
 
-	kernel_neon_begin();
-	do_it(neon);
-	kernel_neon_end();
-	do_it(fiat32);
-	do_it(donna32);
+	for (i = 0; i < STEPS; ++i) {
+		median_generic[i] = do_it(generic, i * STEP, {}, {});
+		median_ossl_scalar[i] = do_it(ossl_scalar, i * STEP, {}, {});
+		median_ossl_neon[i] = do_it(ossl_neon, i * STEP, { kernel_neon_begin(); }, { kernel_neon_end(); });
+		median_ard_neon[i] = do_it(ard_neon, i * STEP, { kernel_neon_begin(); }, { kernel_neon_end(); });
+	}
 
 	spin_unlock_irqrestore(&lock, flags);
-	
-	report_it(neon);
-	report_it(fiat32);
-	report_it(donna32);
 
-	/* Don't let compiler be too clever. */
-	dummy = ret;
+	pr_err("%lu: %12s %12s %12s %12s %12s\n", stamp, "length", "generic", "ossl scalar", "ossl neon", "ard neon");
+
+	for (i = 0; i < STEPS; ++i)
+		pr_err("%lu: %12u %12lu %12lu %12lu %12lu ", stamp, i * STEP,
+		       median_generic[i], median_ossl_scalar[i], median_ossl_neon[i], median_ard_neon[i]);
+
+out:
+	kfree(trial_times);
+	kfree(input);
+	kfree(output);
 	
 	/* We should never actually agree to insert the module. Choosing
 	 * -0x1000 here is an amazing hack. It causes the kernel to not
