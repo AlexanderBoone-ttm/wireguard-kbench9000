@@ -6,6 +6,8 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <linux/slab.h>
+#include <linux/sort.h>
 #include <asm/cpufeature.h>
 #include <asm/processor.h>
 #include <asm/fpu/api.h>
@@ -34,10 +36,14 @@ static __always_inline int name(void) \
 	for (i = 0; i < WARMUP; ++i) \
 		ret |= name(); \
 	asm volatile("cpuid" : "+a" (eax), "=b" (ebx), "=d" (edx), "+c" (ecx)); \
-	start_ ## name = get_cycles(); \
-	for (i = 0; i < TRIALS; ++i) \
+	for (i = 0; i <= TRIALS; ++i) { \
+		trial_times[i] = get_cycles(); \
 		ret |= name(); \
-	end_ ## name = get_cycles(); \
+	} \
+	for (i = 0; i < TRIALS; ++i) \
+		trial_times[i] = trial_times[i + 1] - trial_times[i]; \
+	sort(trial_times, TRIALS + 1, sizeof(cycles_t), compare_cycles, NULL); \
+	median_ ## name = trial_times[TRIALS / 2]; \
 } while (0)
 
 #define test_it(name, before, after) do { \
@@ -52,7 +58,7 @@ static __always_inline int name(void) \
 } while (0)
 
 #define report_it(name) do { \
-	pr_err("%lu: %12s: %6llu cycles per call\n", stamp, #name, (end_ ## name - start_ ## name) / TRIALS); \
+	pr_err("%lu: %12s: %6llu cycles per call\n", stamp, #name, median_ ## name); \
 } while (0)
 
 
@@ -66,6 +72,11 @@ declare_it(precomp_adx)
 declare_it(fiat32)
 declare_it(donna32)
 declare_it(tweetnacl)
+
+static int compare_cycles(const void *a, const void *b)
+{
+	return *((cycles_t *)a) - *((cycles_t *)b);
+}
 
 static bool verify(void)
 {
@@ -94,24 +105,29 @@ static bool verify(void)
 
 static int __init mod_init(void)
 {
-	enum { WARMUP = 6000, TRIALS = 15000, IDLE = 1 * 1000 };
+	enum { WARMUP = 6000, TRIALS = 5000, IDLE = 1 * 1000 };
 	int ret = 0, i;
-	cycles_t start_donna64, end_donna64;
-	cycles_t start_hacl64, end_hacl64;
-	cycles_t start_fiat64, end_fiat64;
-	cycles_t start_sandy2x = 0, end_sandy2x = 0;
-	cycles_t start_amd64 = 0, end_amd64 = 0;
-	cycles_t start_precomp_bmi2 = 0, end_precomp_bmi2 = 0;
-	cycles_t start_precomp_adx = 0, end_precomp_adx = 0;
-	cycles_t start_fiat32, end_fiat32;
-	cycles_t start_donna32, end_donna32;
-	cycles_t start_tweetnacl, end_tweetnacl;
+	cycles_t *trial_times;
+	cycles_t median_donna64 = 0;
+	cycles_t median_hacl64 = 0;
+	cycles_t median_fiat64 = 0;
+	cycles_t median_sandy2x = 0;
+	cycles_t median_amd64 = 0;
+	cycles_t median_precomp_bmi2 = 0;
+	cycles_t median_precomp_adx = 0;
+	cycles_t median_fiat32 = 0;
+	cycles_t median_donna32 = 0;
+	cycles_t median_tweetnacl = 0;
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
 	if (!verify())
 		return -EBFONT;
-	
+
+	trial_times = kcalloc(TRIALS + 1, sizeof(cycles_t), GFP_KERNEL);
+	if (!trial_times)
+		return -ENOMEM;
+
 	msleep(IDLE);
 
 	spin_lock_irqsave(&lock, flags);
@@ -153,6 +169,7 @@ static int __init mod_init(void)
 
 	/* Don't let compiler be too clever. */
 	dummy = ret;
+	kfree(trial_times);
 	
 	/* We should never actually agree to insert the module. Choosing
 	 * -0x1000 here is an amazing hack. It causes the kernel to not
