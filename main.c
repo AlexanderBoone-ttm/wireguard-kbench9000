@@ -25,6 +25,7 @@ static int compare_cycles(const void *a, const void *b)
 	for (j = 0; j < WARMUP; ++j) \
 		chacha20_ ## name(output, input, len, key, counter); \
 	for (j = 0; j <= TRIALS; ++j) { \
+		mb(); \
 		trial_times[j] = get_cycles(); \
 		chacha20_ ## name(output, input, len, key, counter); \
 	} \
