@@ -13,11 +13,19 @@
 static unsigned long stamp = 0;
 module_param(stamp, ulong, 0);
 
+
+static inline u32 get_pmccntr(void)
+{
+	u32 tsc;
+	asm volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(tsc));
+	return tsc;
+}
+
 #define declare_it(name) void chacha20_ ## name(u8 *dst, const u8 *src, u32 len, const u32 key[8], const u32 counter[4]);
 
 static int compare_cycles(const void *a, const void *b)
 {
-	return *((cycles_t *)a) - *((cycles_t *)b);
+	return *((u32 *)a) - *((u32 *)b);
 }
 
 #define do_it(name, len, before, after) ({ \
@@ -26,13 +34,13 @@ static int compare_cycles(const void *a, const void *b)
 		chacha20_ ## name(output, input, len, key, counter); \
 	for (j = 0; j <= TRIALS; ++j) { \
 		mb(); \
-		trial_times[j] = get_cycles(); \
+		trial_times[j] = get_pmccntr(); \
 		chacha20_ ## name(output, input, len, key, counter); \
 	} \
 	after; \
 	for (j = 0; j < TRIALS; ++j) \
 		trial_times[j] = trial_times[j + 1] - trial_times[j]; \
-	sort(trial_times, TRIALS + 1, sizeof(cycles_t), compare_cycles, NULL); \
+	sort(trial_times, TRIALS + 1, sizeof(u32), compare_cycles, NULL); \
 	trial_times[TRIALS / 2]; \
 })
 
@@ -43,17 +51,21 @@ declare_it(ard_neon)
 
 static int __init mod_init(void)
 {
-	enum { WARMUP = 1000, TRIALS = 20000, IDLE = 1 * 1000, STEP = 32, STEPS = 128 };
+	enum { WARMUP = 500, TRIALS = 10000, IDLE = 1 * 1000, STEP = 32, STEPS = 128 };
 	u32 key[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 	u32 counter[4] = { 1, 2, 3, 4 };
 	u8 *input = NULL, *output = NULL;
-	cycles_t *trial_times = NULL;
-	cycles_t median_generic[STEPS], median_ossl_scalar[STEPS], median_ossl_neon[STEPS], median_ard_neon[STEPS];
+	u32 *trial_times = NULL;
+	u32 median_generic[STEPS], median_ossl_scalar[STEPS], median_ossl_neon[STEPS], median_ard_neon[STEPS];
 	size_t i, j;
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
 
-	trial_times = kcalloc(TRIALS + 1, sizeof(cycles_t), GFP_KERNEL);
+	asm volatile("mcr p15, 0, %0, c9, c14, 0" : : "r"(1));
+	asm volatile("mcr p15, 0, %0, c9, c12, 0" : : "r"(29));
+	asm volatile("mcr p15, 0, %0, c9, c12, 1" : : "r"(0x8000000f));
+
+	trial_times = kcalloc(TRIALS + 1, sizeof(u32), GFP_KERNEL);
 	if (!trial_times)
 		goto out;
 	input = kcalloc(STEP, STEPS, GFP_KERNEL);
@@ -82,7 +94,7 @@ static int __init mod_init(void)
 	pr_err("%lu: %12s %12s %12s %12s %12s\n", stamp, "length", "generic", "ossl scalar", "ossl neon", "ard neon");
 
 	for (i = 0; i < STEPS; ++i)
-		pr_err("%lu: %12u %12lu %12lu %12lu %12lu ", stamp, i * STEP,
+		pr_err("%lu: %12u %12u %12u %12u %12u ", stamp, i * STEP,
 		       median_generic[i], median_ossl_scalar[i], median_ossl_neon[i], median_ard_neon[i]);
 
 out:
