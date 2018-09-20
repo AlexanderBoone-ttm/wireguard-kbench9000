@@ -94,7 +94,7 @@ static int __init mod_init(void)
 	pr_err("%lu: %12s %12s %12s %12s %12s\n", stamp, "length", "generic", "ossl scalar", "ossl neon", "ard neon");
 
 	for (i = 0; i < STEPS; ++i)
-		pr_err("%lu: %12u %12u %12u %12u %12u ", stamp, i * STEP,
+		pr_err("%lu: %12u %12u %12u %12u %12u\n", stamp, i * STEP,
 		       median_generic[i], median_ossl_scalar[i], median_ossl_neon[i], median_ard_neon[i]);
 
 out:
