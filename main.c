@@ -48,6 +48,7 @@ declare_it(generic)
 declare_it(ossl_scalar)
 declare_it(ossl_neon)
 declare_it(ard_neon)
+declare_it(eric_scalar)
 
 static int __init mod_init(void)
 {
@@ -56,7 +57,7 @@ static int __init mod_init(void)
 	u32 counter[4] = { 1, 2, 3, 4 };
 	u8 *input = NULL, *output = NULL;
 	u32 *trial_times = NULL;
-	u32 median_generic[STEPS], median_ossl_scalar[STEPS], median_ossl_neon[STEPS], median_ard_neon[STEPS];
+	u32 median_generic[STEPS], median_ossl_scalar[STEPS], median_ossl_neon[STEPS], median_ard_neon[STEPS], median_eric_scalar[STEPS];
 	size_t i, j;
 	unsigned long flags;
 	DEFINE_SPINLOCK(lock);
@@ -85,17 +86,18 @@ static int __init mod_init(void)
 	for (i = 0; i < STEPS; ++i) {
 		median_generic[i] = do_it(generic, i * STEP, {}, {});
 		median_ossl_scalar[i] = do_it(ossl_scalar, i * STEP, {}, {});
+		median_eric_scalar[i] = do_it(eric_scalar, i * STEP, {}, {});
 		median_ossl_neon[i] = do_it(ossl_neon, i * STEP, { kernel_neon_begin(); }, { kernel_neon_end(); });
 		median_ard_neon[i] = do_it(ard_neon, i * STEP, { kernel_neon_begin(); }, { kernel_neon_end(); });
 	}
 
 	spin_unlock_irqrestore(&lock, flags);
 
-	pr_err("%lu: %12s %12s %12s %12s %12s\n", stamp, "length", "generic", "ossl scalar", "ossl neon", "ard neon");
+	pr_err("%lu: %12s %12s %12s %12s %12s %12s\n", stamp, "length", "generic", "ossl scalar", "ossl neon", "ard neon", "eric scalar");
 
 	for (i = 0; i < STEPS; ++i)
-		pr_err("%lu: %12u %12u %12u %12u %12u\n", stamp, i * STEP,
-		       median_generic[i], median_ossl_scalar[i], median_ossl_neon[i], median_ard_neon[i]);
+		pr_err("%lu: %12u %12u %12u %12u %12u %12u\n", stamp, i * STEP,
+		       median_generic[i], median_ossl_scalar[i], median_ossl_neon[i], median_ard_neon[i], median_eric_scalar[i]);
 
 out:
 	kfree(trial_times);
