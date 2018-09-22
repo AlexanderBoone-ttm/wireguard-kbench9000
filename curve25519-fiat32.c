@@ -755,8 +755,8 @@ static __always_inline void fe_mul121666(fe *h, const fe_loose *f)
 
 bool curve25519_fiat32(u8 out[CURVE25519_POINT_SIZE], const u8 scalar[CURVE25519_POINT_SIZE], const u8 point[CURVE25519_POINT_SIZE])
 {
-	fe x1, x2, z2, x3, z3, tmp0, tmp1;
-	fe_loose x2l, z2l, x3l, tmp0l, tmp1l;
+	fe x1, x2, z2, x3, z3;
+	fe_loose x2l, z2l, x3l;
 	unsigned swap = 0;
 	int pos;
 	u8 e[32];
@@ -789,6 +789,8 @@ bool curve25519_fiat32(u8 out[CURVE25519_POINT_SIZE], const u8 scalar[CURVE25519
 	fe_1(&z3);
 
 	for (pos = 254; pos >= 0; --pos) {
+		fe tmp0, tmp1;
+		fe_loose tmp0l, tmp1l;
 		/* loop invariant as of right before the test, for the case where x1 != 0:
 		 *   pos >= -1; if z2 = 0 then x2 is nonzero; if z3 = 0 then x3 is nonzero
 		 *   let r := e >> (pos+1) in the following equalities of projective points:
