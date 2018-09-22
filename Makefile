@@ -1,5 +1,5 @@
 ifneq ($(KERNELRELEASE),)
-kbench9000-y := main.o generic.o openssl.o ard.o ard-glue.o eric.o eric-glue.o
+kbench9000-y := main.o generic.o openssl.o ard.o ard-glue.o eric.o
 obj-m := kbench9000.o
 ccflags-y += -O3
 ccflags-y += -D'pr_fmt(fmt)=KBUILD_MODNAME ": " fmt'
