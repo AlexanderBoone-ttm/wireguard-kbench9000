@@ -1,7 +1,9 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- *
+/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
+/*
  * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  * Copyright (C) 2006-2017 CRYPTOGAMS by <appro@openssl.org>. All Rights Reserved.
+ *
+ * This is based in part on Andy Polyakov's implementation from CRYPTOGAMS.
  */
 
 #include <linux/linkage.h>
@@ -25,8 +27,6 @@
 .long	0x61707865,0x3320646e,0x79622d32,0x6b206574	@ endian-neutral
 .Lone:
 .long	1,0,0,0
-.Lrot8:
-.long	0x02010003,0x06050407
 .word	-1
 
 .align	5
@@ -34,7 +34,7 @@ ENTRY(chacha20_ossl_scalar)
 	ldr	r12,[sp,#0]		@ pull pointer to counter and nonce
 	stmdb	sp!,{r0-r2,r4-r11,lr}
 	cmp	r2,#0			@ len==0?
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	eq
 #endif
 	addeq	sp,sp,#4*3
@@ -47,7 +47,6 @@ ENTRY(chacha20_ossl_scalar)
 #else
 	adr	r14,.Lsigma		@ .Lsigma
 #endif
-
 	stmdb	sp!,{r4-r7}		@ copy counter and nonce
 	ldmia	r3,{r4-r11}		@ load key
 	ldmia	r14,{r0-r3}		@ load sigma
@@ -173,7 +172,7 @@ ENTRY(chacha20_ossl_scalar)
 	@ rx and second half at sp+4*(16+8)
 
 	cmp	r11,#64		@ done yet?
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itete	lo
 #endif
 	addlo	r12,sp,#4*(0)		@ shortcut or ...
@@ -206,7 +205,7 @@ ENTRY(chacha20_ossl_scalar)
 
 	add	r2,r2,r10
 	add	r3,r3,r11
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhs	r10,[r12,#-8]
@@ -217,14 +216,14 @@ ENTRY(chacha20_ossl_scalar)
 	rev	r2,r2
 	rev	r3,r3
 #endif
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	eorhs	r0,r0,r8	@ xor with input
 	eorhs	r1,r1,r9
 	 add	r8,sp,#4*(4)
 	str	r0,[r14],#16		@ store output
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	eorhs	r2,r2,r10
@@ -276,19 +275,19 @@ ENTRY(chacha20_ossl_scalar)
 
 	add	r0,r0,r8	@ accumulate key material
 	add	r1,r1,r9
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhs	r8,[r12],#16		@ load input
 	ldrhs	r9,[r12,#-12]
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hi
 #endif
 	 strhi	r10,[sp,#4*(16+10)]	@ copy "rx" while at it
 	 strhi	r11,[sp,#4*(16+11)]	@ copy "rx" while at it
 	add	r2,r2,r10
 	add	r3,r3,r11
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhs	r10,[r12,#-8]
@@ -299,14 +298,14 @@ ENTRY(chacha20_ossl_scalar)
 	rev	r2,r2
 	rev	r3,r3
 #endif
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	eorhs	r0,r0,r8
 	eorhs	r1,r1,r9
 	 add	r8,sp,#4*(12)
 	str	r0,[r14],#16		@ store output
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	eorhs	r2,r2,r10
@@ -376,9 +375,9 @@ ENTRY(chacha20_ossl_scalar)
 #endif
 #if __LINUX_ARM_ARCH__ < 7
 	ldr	r11,[sp,#4*(3)]
-	add	r0,r0,r8		@ accumulate key material
-	add	r1,r1,r9
-	add	r2,r2,r10
+	add	r0,r8,r0	@ accumulate key material
+	add	r1,r9,r1
+	add	r2,r10,r2
 #ifdef __thumb2__
 	itete	lo
 #endif
@@ -387,7 +386,7 @@ ENTRY(chacha20_ossl_scalar)
 	eorlo	r9,r9,r9
 	ldrhsb	r9,[r12,#-12]
 
-	add	r3,r3,r11
+	add	r3,r11,r3
 #ifdef __thumb2__
 	itete	lo
 #endif
@@ -398,7 +397,7 @@ ENTRY(chacha20_ossl_scalar)
 
 	eor	r0,r8,r0		@ xor with input (or zero)
 	eor	r1,r9,r1
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-15]		@ load more input
@@ -406,7 +405,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r2,r10,r2
 	 strb	r0,[r14],#16		@ store output
 	eor	r3,r11,r3
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-7]
@@ -415,7 +414,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r0,r8,r0,lsr#8
 	 strb	r2,[r14,#-8]
 	eor	r1,r9,r1,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-14]		@ load more input
@@ -424,7 +423,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r2,r10,r2,lsr#8
 	 strb	r0,[r14,#-15]
 	eor	r3,r11,r3,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-6]
@@ -433,7 +432,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r0,r8,r0,lsr#8
 	 strb	r2,[r14,#-7]
 	eor	r1,r9,r1,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-13]		@ load more input
@@ -442,7 +441,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r2,r10,r2,lsr#8
 	 strb	r0,[r14,#-14]
 	eor	r3,r11,r3,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-5]
@@ -461,10 +460,10 @@ ENTRY(chacha20_ossl_scalar)
 	add	r8,sp,#4*(4+0)
 	ldmia	r8,{r8-r11}		@ load key material
 	add	r0,sp,#4*(16+8)
-	add	r4,r4,r8		@ accumulate key material
-	add	r5,r5,r9
-	add	r6,r6,r10
-#ifdef	__thumb2__
+	add	r4,r8,r4,ror#13	@ accumulate key material
+	add	r5,r9,r5,ror#13
+	add	r6,r10,r6,ror#13
+#ifdef __thumb2__
 	itete	lo
 #endif
 	eorlo	r8,r8,r8		@ zero or ...
@@ -472,8 +471,8 @@ ENTRY(chacha20_ossl_scalar)
 	eorlo	r9,r9,r9
 	ldrhsb	r9,[r12,#-12]
 
-	add	r7,r7,r11
-#ifdef	__thumb2__
+	add	r7,r11,r7,ror#13
+#ifdef __thumb2__
 	itete	lo
 #endif
 	eorlo	r10,r10,r10
@@ -483,7 +482,7 @@ ENTRY(chacha20_ossl_scalar)
 
 	eor	r4,r8,r4		@ xor with input (or zero)
 	eor	r5,r9,r5
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-15]		@ load more input
@@ -491,7 +490,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r6,r10,r6
 	 strb	r4,[r14],#16		@ store output
 	eor	r7,r11,r7
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-7]
@@ -500,7 +499,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r4,r8,r4,lsr#8
 	 strb	r6,[r14,#-8]
 	eor	r5,r9,r5,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-14]		@ load more input
@@ -509,7 +508,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r6,r10,r6,lsr#8
 	 strb	r4,[r14,#-15]
 	eor	r7,r11,r7,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-6]
@@ -518,7 +517,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r4,r8,r4,lsr#8
 	 strb	r6,[r14,#-7]
 	eor	r5,r9,r5,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-13]		@ load more input
@@ -527,7 +526,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r6,r10,r6,lsr#8
 	 strb	r4,[r14,#-14]
 	eor	r7,r11,r7,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-5]
@@ -546,15 +545,15 @@ ENTRY(chacha20_ossl_scalar)
 	add	r8,sp,#4*(4+4)
 	ldmia	r8,{r8-r11}		@ load key material
 	ldmia	r0,{r0-r7}		@ load second half
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hi
 #endif
 	strhi	r10,[sp,#4*(16+10)]		@ copy "rx"
 	strhi	r11,[sp,#4*(16+11)]		@ copy "rx"
-	add	r0,r0,r8		@ accumulate key material
-	add	r1,r1,r9
-	add	r2,r2,r10
-#ifdef	__thumb2__
+	add	r0,r8,r0	@ accumulate key material
+	add	r1,r9,r1
+	add	r2,r10,r2
+#ifdef __thumb2__
 	itete	lo
 #endif
 	eorlo	r8,r8,r8		@ zero or ...
@@ -562,8 +561,8 @@ ENTRY(chacha20_ossl_scalar)
 	eorlo	r9,r9,r9
 	ldrhsb	r9,[r12,#-12]
 
-	add	r3,r3,r11
-#ifdef	__thumb2__
+	add	r3,r11,r3
+#ifdef __thumb2__
 	itete	lo
 #endif
 	eorlo	r10,r10,r10
@@ -573,7 +572,7 @@ ENTRY(chacha20_ossl_scalar)
 
 	eor	r0,r8,r0		@ xor with input (or zero)
 	eor	r1,r9,r1
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-15]		@ load more input
@@ -581,7 +580,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r2,r10,r2
 	 strb	r0,[r14],#16		@ store output
 	eor	r3,r11,r3
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-7]
@@ -590,7 +589,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r0,r8,r0,lsr#8
 	 strb	r2,[r14,#-8]
 	eor	r1,r9,r1,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-14]		@ load more input
@@ -599,7 +598,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r2,r10,r2,lsr#8
 	 strb	r0,[r14,#-15]
 	eor	r3,r11,r3,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-6]
@@ -608,7 +607,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r0,r8,r0,lsr#8
 	 strb	r2,[r14,#-7]
 	eor	r1,r9,r1,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-13]		@ load more input
@@ -617,7 +616,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r2,r10,r2,lsr#8
 	 strb	r0,[r14,#-14]
 	eor	r3,r11,r3,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-5]
@@ -635,15 +634,15 @@ ENTRY(chacha20_ossl_scalar)
 	 strb	r3,[r14,#-1]
 	add	r8,sp,#4*(4+8)
 	ldmia	r8,{r8-r11}		@ load key material
-	add	r4,r4,r8		@ accumulate key material
-#ifdef	__thumb2__
+	add	r4,r8,r4,ror#24	@ accumulate key material
+#ifdef __thumb2__
 	itt	hi
 #endif
 	addhi	r8,r8,#1			@ next counter value
 	strhi	r8,[sp,#4*(12)]		@ save next counter value
-	add	r5,r5,r9
-	add	r6,r6,r10
-#ifdef	__thumb2__
+	add	r5,r9,r5,ror#24
+	add	r6,r10,r6,ror#24
+#ifdef __thumb2__
 	itete	lo
 #endif
 	eorlo	r8,r8,r8		@ zero or ...
@@ -651,8 +650,8 @@ ENTRY(chacha20_ossl_scalar)
 	eorlo	r9,r9,r9
 	ldrhsb	r9,[r12,#-12]
 
-	add	r7,r7,r11
-#ifdef	__thumb2__
+	add	r7,r11,r7,ror#24
+#ifdef __thumb2__
 	itete	lo
 #endif
 	eorlo	r10,r10,r10
@@ -662,7 +661,7 @@ ENTRY(chacha20_ossl_scalar)
 
 	eor	r4,r8,r4		@ xor with input (or zero)
 	eor	r5,r9,r5
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-15]		@ load more input
@@ -670,7 +669,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r6,r10,r6
 	 strb	r4,[r14],#16		@ store output
 	eor	r7,r11,r7
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-7]
@@ -679,7 +678,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r4,r8,r4,lsr#8
 	 strb	r6,[r14,#-8]
 	eor	r5,r9,r5,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-14]		@ load more input
@@ -688,7 +687,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r6,r10,r6,lsr#8
 	 strb	r4,[r14,#-15]
 	eor	r7,r11,r7,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-6]
@@ -697,7 +696,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r4,r8,r4,lsr#8
 	 strb	r6,[r14,#-7]
 	eor	r5,r9,r5,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r8,[r12,#-13]		@ load more input
@@ -706,7 +705,7 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r6,r10,r6,lsr#8
 	 strb	r4,[r14,#-14]
 	eor	r7,r11,r7,lsr#8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	itt	hs
 #endif
 	ldrhsb	r10,[r12,#-5]
@@ -722,11 +721,11 @@ ENTRY(chacha20_ossl_scalar)
 	eor	r7,r11,r7,lsr#8
 	 strb	r6,[r14,#-5]
 	 strb	r7,[r14,#-1]
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	it	ne
 #endif
 	ldrne	r8,[sp,#4*(32+2)]		@ re-load len
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	it	hs
 #endif
 	subhs	r11,r8,#64			@ len-=64
@@ -754,13 +753,13 @@ ENTRY(chacha20_ossl_scalar)
 	ldmia	sp!,{r4-r11,pc}
 ENDPROC(chacha20_ossl_scalar)
 
-#if __LINUX_ARM_ARCH__ >= 7 && IS_ENABLED(CONFIG_KERNEL_MODE_NEON)
+#ifdef CONFIG_KERNEL_MODE_NEON
 .align	5
 .Lsigma2:
 .long	0x61707865,0x3320646e,0x79622d32,0x6b206574	@ endian-neutral
 .Lone2:
 .long	1,0,0,0
-.word -1
+.word	-1
 
 .arch	armv7-a
 .fpu	neon
@@ -1167,13 +1166,13 @@ ENTRY(chacha20_ossl_neon)
 	ldr		r8,[r12],#16		@ load input
 	add		r1,r1,r9
 	ldr		r9,[r12,#-12]
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	it	hi
 #endif
 	 strhi		r10,[sp,#4*(16+10)]	@ copy "rx" while at it
 	add		r2,r2,r10
 	ldr		r10,[r12,#-8]
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	it	hi
 #endif
 	 strhi		r11,[sp,#4*(16+11)]	@ copy "rx" while at it
@@ -1214,7 +1213,7 @@ ENTRY(chacha20_ossl_neon)
 	rev		r7,r7
 #endif
 	eor		r4,r4,r8
-#ifdef	__thumb2__
+#ifdef __thumb2__
 	it	hi
 #endif
 	 ldrhi		r8,[sp,#4*(32+2)]	@ re-load len
