@@ -10,6 +10,7 @@
 
 #define load64_le(x) get_unaligned_le64(x)
 #define store64_le(d, s) put_unaligned_le64(s, d)
+#define KRML_CHECK_SIZE(a,b) {}
 
 static uint32_t Lib_Utils_uint32_eq_mask(uint32_t a, uint32_t b)
 {
