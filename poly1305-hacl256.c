@@ -33,7 +33,7 @@ __always_inline static uint64_t FStar_UInt64_gte_mask(uint64_t a, uint64_t b)
 
 uint32_t Hacl_Poly1305_256_blocklen = (uint32_t)16U;
 
-void Hacl_Poly1305_256_poly1305_init(Lib_IntVector_Intrinsics_vec256 *ctx, uint8_t *key)
+static void Hacl_Poly1305_256_poly1305_init(Lib_IntVector_Intrinsics_vec256 *ctx, uint8_t *key)
 {
   Lib_IntVector_Intrinsics_vec256 *acc = ctx;
   Lib_IntVector_Intrinsics_vec256 *pre = ctx + (uint32_t)5U;
@@ -438,7 +438,7 @@ void Hacl_Poly1305_256_poly1305_init(Lib_IntVector_Intrinsics_vec256 *ctx, uint8
   rn_5[4U] = Lib_IntVector_Intrinsics_vec256_smul64(f24, (uint64_t)5U);
 }
 
-inline void
+static inline void
 Hacl_Poly1305_256_poly1305_update(
   Lib_IntVector_Intrinsics_vec256 *ctx,
   uint32_t len1,
@@ -1869,7 +1869,7 @@ Hacl_Poly1305_256_poly1305_update(
   }
 }
 
-void
+static void
 Hacl_Poly1305_256_poly1305_update_blocks(
   Lib_IntVector_Intrinsics_vec256 *ctx,
   uint32_t len1,
@@ -1879,14 +1879,16 @@ Hacl_Poly1305_256_poly1305_update_blocks(
   Hacl_Poly1305_256_poly1305_update(ctx, len1, text);
 }
 
-void
-(*Hacl_Poly1305_256_poly1305_update_padded)(
+static void
+Hacl_Poly1305_256_poly1305_update_padded(
   Lib_IntVector_Intrinsics_vec256 *x0,
   uint32_t x1,
   uint8_t *x2
-) = Hacl_Poly1305_256_poly1305_update;
+) {
+  Hacl_Poly1305_256_poly1305_update(x0, x1, x2);
+}
 
-void
+static void
 Hacl_Poly1305_256_poly1305_update_last(
   Lib_IntVector_Intrinsics_vec256 *ctx,
   uint32_t len1,
@@ -1896,7 +1898,7 @@ Hacl_Poly1305_256_poly1305_update_last(
   Hacl_Poly1305_256_poly1305_update(ctx, len1, text);
 }
 
-void
+static void
 Hacl_Poly1305_256_poly1305_finish(
   uint8_t *tag,
   uint8_t *key,
@@ -2049,7 +2051,7 @@ Hacl_Poly1305_256_poly1305_finish(
   memcpy(tag, tmp, (uint32_t)16U * sizeof tmp[0U]);
 }
 
-void poly1305_hacl256(uint8_t *tag, uint32_t len1, uint8_t *text, uint8_t *key)
+void poly1305_hacl256(uint8_t *tag, uint8_t *text, uint32_t len1, uint8_t *key)
 {
   KRML_CHECK_SIZE(sizeof (Lib_IntVector_Intrinsics_vec256), (uint32_t)5U + (uint32_t)20U);
   Lib_IntVector_Intrinsics_vec256 ctx[(uint32_t)5U + (uint32_t)20U];
