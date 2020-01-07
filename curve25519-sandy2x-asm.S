@@ -27,7 +27,7 @@ curve25519_sandy2x_REDMASK51: .quad 0x0007FFFFFFFFFFFF
 .text
 .align 32
 #ifdef CONFIG_AS_AVX
-ENTRY(curve25519_sandy2x_fe51_mul)
+SYM_FUNC_START(curve25519_sandy2x_fe51_mul)
 	push %rbp
 	mov %rsp,%rbp
 	sub $96,%rsp
@@ -200,10 +200,10 @@ ENTRY(curve25519_sandy2x_fe51_mul)
 	movq 48(%rsp),%rbp
 	leave
 	ret
-ENDPROC(curve25519_sandy2x_fe51_mul)
+SYM_FUNC_END(curve25519_sandy2x_fe51_mul)
 
 .align 32
-ENTRY(curve25519_sandy2x_fe51_nsquare)
+SYM_FUNC_START(curve25519_sandy2x_fe51_nsquare)
 	push %rbp
 	mov %rsp,%rbp
 	sub $64,%rsp
@@ -351,10 +351,10 @@ ENTRY(curve25519_sandy2x_fe51_nsquare)
 	movq 48(%rsp),%rbp
 	leave
 	ret
-ENDPROC(curve25519_sandy2x_fe51_nsquare)
+SYM_FUNC_END(curve25519_sandy2x_fe51_nsquare)
 
 .align 32
-ENTRY(curve25519_sandy2x_fe51_pack)
+SYM_FUNC_START(curve25519_sandy2x_fe51_pack)
 	push %rbp
 	mov %rsp,%rbp
 	sub $32,%rsp
@@ -556,10 +556,10 @@ ENTRY(curve25519_sandy2x_fe51_pack)
 	movq 8(%rsp),%r12
 	leave
 	ret
-ENDPROC(curve25519_sandy2x_fe51_pack)
+SYM_FUNC_END(curve25519_sandy2x_fe51_pack)
 
 .align 32
-ENTRY(curve25519_sandy2x_ladder)
+SYM_FUNC_START(curve25519_sandy2x_ladder)
 	push %rbp
 	mov %rsp,%rbp
 	sub $1856,%rsp
@@ -1979,10 +1979,10 @@ ENTRY(curve25519_sandy2x_ladder)
 	movq 1848(%rsp),%r14
 	leave
 	ret
-ENDPROC(curve25519_sandy2x_ladder)
+SYM_FUNC_END(curve25519_sandy2x_ladder)
 
 .align 32
-ENTRY(curve25519_sandy2x_ladder_base)
+SYM_FUNC_START(curve25519_sandy2x_ladder_base)
 	push %rbp
 	mov %rsp,%rbp
 	sub $1568,%rsp
@@ -3257,5 +3257,5 @@ ENTRY(curve25519_sandy2x_ladder_base)
 	movq 1552(%rsp),%r13
 	leave
 	ret
-ENDPROC(curve25519_sandy2x_ladder_base)
+SYM_FUNC_END(curve25519_sandy2x_ladder_base)
 #endif /* CONFIG_AS_AVX */
