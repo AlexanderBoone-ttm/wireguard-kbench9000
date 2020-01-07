@@ -3,7 +3,7 @@ kbench9000-y := main.o poly1305-hacl32x1.o poly1305-hacl128.o poly1305-hacl256.o
 obj-m := kbench9000.o
 ccflags-y += -O3
 CFLAGS_poly1305-hacl128.o += -mmmx -mavx2 -mavx -msse
-CFLAGS_poly1305-hacl256.o += -mmmx -mavx2 -mavx -msse
+CFLAGS_poly1305-hacl256.o += -mmmx -mavx2 -mavx -msse -std=gnu99
 ccflags-y += -D'pr_fmt(fmt)=KBUILD_MODNAME ": " fmt'
 else
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
