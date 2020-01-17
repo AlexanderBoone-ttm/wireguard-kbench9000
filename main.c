@@ -69,6 +69,7 @@ declare_it(sandy2x)
 declare_it(amd64)
 declare_it(precomp_bmi2)
 declare_it(precomp_adx)
+declare_it(ever64)
 declare_it(fiat32)
 declare_it(donna32)
 declare_it(tweetnacl)
@@ -92,8 +93,10 @@ static bool verify(void)
 			test_it(sandy2x, kernel_fpu_begin(), kernel_fpu_end());
 		if (boot_cpu_has(X86_FEATURE_BMI2))
 			test_it(precomp_bmi2, {}, {});
-		if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX))
+		if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX)) {
 			test_it(precomp_adx, {}, {});
+			test_it(ever64, {}, {});
+		}
 		if (dangerous)
 			test_it(amd64, {}, {});
 		test_it(fiat32, {}, {});
@@ -115,6 +118,7 @@ static int __init mod_init(void)
 	cycles_t median_amd64 = 0;
 	cycles_t median_precomp_bmi2 = 0;
 	cycles_t median_precomp_adx = 0;
+	cycles_t median_ever64 = 0;
 	cycles_t median_fiat32 = 0;
 	cycles_t median_donna32 = 0;
 	cycles_t median_tweetnacl = 0;
@@ -142,8 +146,10 @@ static int __init mod_init(void)
 	}
 	if (boot_cpu_has(X86_FEATURE_BMI2))
 		do_it(precomp_bmi2);
-	if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX))
+	if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX)) {
 		do_it(precomp_adx);
+		do_it(ever64);
+	}
 	if (dangerous)
 		do_it(amd64);
 	do_it(fiat32);
@@ -159,8 +165,10 @@ static int __init mod_init(void)
 		report_it(sandy2x);
 	if (boot_cpu_has(X86_FEATURE_BMI2))
 		report_it(precomp_bmi2);
-	if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX))
+	if (boot_cpu_has(X86_FEATURE_BMI2) && boot_cpu_has(X86_FEATURE_ADX)) {
 		report_it(precomp_adx);
+		report_it(ever64);
+	}
 	if (dangerous)
 		report_it(amd64);
 	report_it(fiat32);
