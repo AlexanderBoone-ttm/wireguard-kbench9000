@@ -32,7 +32,7 @@
 .text
 
 .align	32
-ENTRY(poly1305_init_x86_64)
+SYM_FUNC_START(poly1305_init_x86_64)
 	xorq	%rax,%rax
 	movq	%rax,0(%rdi)
 	movq	%rax,8(%rdi)
@@ -50,10 +50,10 @@ ENTRY(poly1305_init_x86_64)
 	movl	$1,%eax
 .Lno_key:
 	ret
-ENDPROC(poly1305_init_x86_64)
+SYM_FUNC_END(poly1305_init_x86_64)
 
 .align	32
-ENTRY(poly1305_blocks_x86_64)
+SYM_FUNC_START(poly1305_blocks_x86_64)
 .Lblocks:
 	shrq	$4,%rdx
 	jz	.Lno_data
@@ -147,10 +147,10 @@ ENTRY(poly1305_blocks_x86_64)
 .Lno_data:
 .Lblocks_epilogue:
 	ret
-ENDPROC(poly1305_blocks_x86_64)
+SYM_FUNC_END(poly1305_blocks_x86_64)
 
 .align	32
-ENTRY(poly1305_emit_x86_64)
+SYM_FUNC_START(poly1305_emit_x86_64)
 .Lemit:
 	movq	0(%rdi),%r8
 	movq	8(%rdi),%r9
@@ -171,7 +171,7 @@ ENTRY(poly1305_emit_x86_64)
 	movq	%rcx,8(%rsi)
 
 	ret
-ENDPROC(poly1305_emit_x86_64)
+SYM_FUNC_END(poly1305_emit_x86_64)
 
 .macro __poly1305_block
 	mulq	%r14
@@ -381,7 +381,7 @@ ENDPROC(poly1305_emit_x86_64)
 
 #ifdef CONFIG_AS_AVX
 .align	32
-ENTRY(poly1305_blocks_avx)
+SYM_FUNC_START(poly1305_blocks_avx)
 
 	movl	20(%rdi),%r8d
 	cmpq	$128,%rdx
@@ -1128,10 +1128,10 @@ ENTRY(poly1305_blocks_avx)
 
 	vzeroupper
 	ret
-ENDPROC(poly1305_blocks_avx)
+SYM_FUNC_END(poly1305_blocks_avx)
 
 .align	32
-ENTRY(poly1305_emit_avx)
+SYM_FUNC_START(poly1305_emit_avx)
 	cmpl	$0,20(%rdi)
 	je	.Lemit
 
@@ -1182,12 +1182,12 @@ ENTRY(poly1305_emit_avx)
 	movq	%rcx,8(%rsi)
 
 	ret
-ENDPROC(poly1305_emit_avx)
+SYM_FUNC_END(poly1305_emit_avx)
 #endif /* CONFIG_AS_AVX */
 
 #ifdef CONFIG_AS_AVX2
 .align	32
-ENTRY(poly1305_blocks_avx2)
+SYM_FUNC_START(poly1305_blocks_avx2)
 
 	movl	20(%rdi),%r8d
 	cmpq	$128,%rdx
@@ -1756,12 +1756,12 @@ ENTRY(poly1305_blocks_avx2)
 	vzeroupper
 	ret
 
-ENDPROC(poly1305_blocks_avx2)
+SYM_FUNC_END(poly1305_blocks_avx2)
 #endif /* CONFIG_AS_AVX2 */
 
 #ifdef CONFIG_AS_AVX512
 .align	32
-ENTRY(poly1305_blocks_avx512)
+SYM_FUNC_START(poly1305_blocks_avx512)
 
 	movl	20(%rdi),%r8d
 	cmpq	$128,%rdx
@@ -2799,5 +2799,5 @@ ENTRY(poly1305_blocks_avx512)
 
 	ret
 
-ENDPROC(poly1305_blocks_avx512)
+SYM_FUNC_END(poly1305_blocks_avx512)
 #endif /* CONFIG_AS_AVX512 */
